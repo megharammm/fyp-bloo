@@ -115,11 +115,37 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/api/admin/documents/{id}",
-            axum::routing::delete(routes::documents::delete),
+            axum::routing::get(routes::documents::detail)
+                .patch(routes::documents::patch)
+                .delete(routes::documents::delete),
+        )
+        .route(
+            "/api/admin/documents/{id}/chunks",
+            axum::routing::get(routes::documents::chunks),
         )
         .route(
             "/api/admin/documents/{id}/publish",
             axum::routing::post(routes::documents::publish),
+        )
+        .route(
+            "/api/admin/documents/{id}/unpublish",
+            axum::routing::post(routes::documents::unpublish),
+        )
+        .route(
+            "/api/admin/documents/{id}/archive",
+            axum::routing::post(routes::documents::archive),
+        )
+        .route(
+            "/api/admin/documents/{id}/reingest",
+            axum::routing::post(routes::documents::reingest),
+        )
+        .route(
+            "/api/admin/jobs",
+            axum::routing::get(routes::documents::jobs),
+        )
+        .route(
+            "/api/admin/stats",
+            axum::routing::get(routes::documents::stats),
         )
         .route(
             "/api/admin/jobs/{id}",
