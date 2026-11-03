@@ -1,0 +1,51 @@
+# Golden set — 150 real campus questions.
+#
+# RULES
+#   • quiz yourself with questions students ACTUALLY ask, not textbook phrasings
+#   • gold_doc_id must be the document id (uuid) or, before ingestion, the file path
+#   • should_refuse: true for questions the corpus genuinely cannot answer
+#   • aim for 60% lookup / 30% procedure / 10% refusal
+#
+# Copy to golden.yaml and fill it. This file is an example, not the real set.
+
+- id: q001
+  question: "What is the hostel fee for first year students?"
+  gold_answer: "The hostel fee for first year students is stated in the fee structure document."
+  gold_doc_id: "fees/hostel-fee-structure-2026-27.pdf"
+  should_refuse: false
+  category: fees
+
+- id: q002
+  question: "How do I apply for a bonafide certificate?"
+  gold_answer: "Submit the application form at the admin office; it is issued within three working days."
+  gold_doc_id: "academics/bonafide-certificate-process.pdf"
+  should_refuse: false
+  category: academics
+
+- id: q003
+  question: "Can I get a refund if I vacate the hostel mid-semester?"
+  gold_answer: "Refunds are pro-rata and require a written application to the hostel warden."
+  gold_doc_id: "hostel/refund-policy.pdf"
+  should_refuse: false
+  category: hostel
+
+- id: q004
+  question: "When is the re-examination form deadline for the current semester?"
+  gold_answer: "See the examination circular published for this semester."
+  gold_doc_id: "exams/re-exam-circular.pdf"
+  should_refuse: false
+  category: exams
+
+- id: q005
+  question: "Which bus route goes to the north campus?"
+  gold_answer: "Route 4 serves the north campus; see the transport schedule."
+  gold_doc_id: "transport/bus-routes.pdf"
+  should_refuse: false
+  category: transport
+
+- id: q006
+  question: "What is the WiFi password for the hostel?"
+  gold_answer: ""
+  gold_doc_id: ""
+  should_refuse: true
+  category: general

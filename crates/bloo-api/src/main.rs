@@ -1,0 +1,129 @@
+use anyhow::Context;
+use askama::Template;
+use axum::{
+    Json, Router,
+    extract::State,
+    http::StatusCode,
+    response::{Html as AxumHtml, IntoResponse, Response},
+    routing::get,
+};
+use bloo_core::{Config, PgPool};
+use serde_json::json;
+use std::sync::Arc;
+use tower_http::{services::ServeDir, trace::TraceLayer};
+
+mod routes;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: PgPool,
+    pub cfg: Arc<Config>,
+}
+
+/// Renders an Askama template into an `IntoResponse`.
+pub struct Html<T: Template>(pub T);
+
+/// Renders an Askama template into a full `Response` (used with `.into_response()`).
+pub struct RenderedHtml(pub String);
+
+impl IntoResponse for RenderedHtml {
+    fn into_response(self) -> Response {
+        AxumHtml(self.0).into_response()
+    }
+}
+
+impl<T: Template> IntoResponse for Html<T> {
+    fn into_response(self) -> Response {
+        match self.0.render() {
+            Ok(body) => RenderedHtml(body).into_response(),
+            Err(err) => {
+                tracing::error!(error = %err, "template render failed");
+                (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response()
+            }
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    dotenvy::dotenv().ok();
+
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "info,bloo_api=debug,bloo_core=debug".into()),
+        )
+        .compact()
+        .init();
+
+    let cfg = Config::from_env().context("invalid configuration")?;
+    tracing::info!(bind = %cfg.bind, "starting Bloo AI");
+
+    let pool = bloo_core::connect(&cfg.database_url).await.context(
+        "cannot reach Postgres - is `docker compose -p blooai up -d db` running on port 27432?",
+    )?;
+
+    if cfg.auto_migrate {
+        bloo_core::migrate(&pool)
+            .await
+            .context("migration failed")?;
+        tracing::info!("migrations applied");
+    }
+
+    let state = AppState {
+        pool,
+        cfg: Arc::new(cfg),
+    };
+
+    let app = Router::new()
+        .route("/", get(routes::chat::index))
+        .route("/admin", get(routes::admin::index))
+        .route("/health", get(health))
+        .route("/api/version", get(version))
+        .route("/api/admin/sync", axum::routing::post(routes::admin::sync))
+        .nest_service("/static", ServeDir::new("static"))
+        .layer(TraceLayer::new_for_http())
+        .with_state(state);
+
+    let listener = tokio::net::TcpListener::bind(
+        &std::env::var("BLOO_BIND").unwrap_or_else(|_| "127.0.0.1:27810".into()),
+    )
+    .await
+    .context("cannot bind Bloo port (27810) - is another process using it?")?;
+
+    tracing::info!("listening on http://{}", listener.local_addr()?);
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+async fn health(State(state): State<AppState>) -> impl IntoResponse {
+    let db_ok: bool = sqlx::query_scalar("select true")
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(false);
+
+    let code = if db_ok {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (
+        code,
+        Json(json!({
+            "service": "bloo-ai",
+            "status": if db_ok { "ok" } else { "degraded" },
+            "db": db_ok,
+            "version": env!("CARGO_PKG_VERSION"),
+        })),
+    )
+}
+
+async fn version() -> impl IntoResponse {
+    Json(json!({
+        "service": "bloo-ai",
+        "version": env!("CARGO_PKG_VERSION"),
+        "commit": option_env!("BLOO_GIT_COMMIT").unwrap_or("dev"),
+        "build": option_env!("BLOO_BUILD").unwrap_or("local"),
+    }))
+}

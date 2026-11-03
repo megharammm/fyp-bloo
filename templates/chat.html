@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Bloo AI — Ask the campus{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>Ask anything about campus.</h1>
+  <p class="sub">Grounded answers with quotes from official documents. No guessing.</p>
+</section>
+
+<section class="chat-card" id="chat">
+  <div class="messages" id="messages">
+    <div class="msg bot">
+      <div class="bubble">
+        <p>Hi. I can answer questions about admissions, fees, hostel, exams and departments.</p>
+        <p class="muted">Try: “What is the hostel refund policy?”</p>
+      </div>
+    </div>
+  </div>
+
+  <form class="composer" id="composer">
+    <input id="q" name="q" placeholder="Ask a question…" autocomplete="off" />
+    <button type="submit">Send</button>
+  </form>
+  <p class="hint">Scaffold build · retrieval + generation land in P2 · see PLAYBOOK.md</p>
+</section>
+
+<script>
+  // Placeholder wiring only. P4 replaces this with SSE streaming.
+  const form = document.getElementById('composer');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = document.getElementById('q');
+    const text = input.value.trim();
+    if (!text) return;
+    const box = document.getElementById('messages');
+    box.insertAdjacentHTML('beforeend',
+      `<div class="msg user"><div class="bubble">${text.replace(/[<>&]/g, '')}</div></div>`);
+    box.insertAdjacentHTML('beforeend',
+      `<div class="msg bot"><div class="bubble muted">Chat endpoint not wired yet (P2).</div></div>`);
+    input.value = '';
+    box.scrollTop = box.scrollHeight;
+  });
+</script>
+{% endblock %}

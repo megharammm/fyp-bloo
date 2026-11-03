@@ -1,0 +1,6 @@
+target
+.git
+data/uploads
+data/models
+.env
+*.pdf

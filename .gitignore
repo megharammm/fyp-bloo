@@ -1,0 +1,13 @@
+target/
+data/raw/*
+data/uploads/*
+data/models/*
+!data/raw/.gitkeep
+!data/uploads/.gitkeep
+!data/models/.gitkeep
+.env
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

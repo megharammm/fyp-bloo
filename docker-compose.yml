@@ -1,0 +1,69 @@
+# Bloo AI — local stack
+#
+# ISOLATION RULES (read before editing):
+#   • project name is pinned to `blooai` -> containers blooai-*, volume blooai_pgdata,
+#     network blooai_net. Never change it.
+#   • Postgres is published on 27432 (NOT 5432). The API is on 27810 (NOT 8000).
+#   • Never run `docker system prune`, `docker volume prune`, or anything without -p blooai.
+#   • D:\Trivya-Data-Pipeline is a different project. Do not touch its containers,
+#     images, volumes or ports.
+
+name: blooai
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: blooai-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: blooai
+      POSTGRES_USER: bloo
+      POSTGRES_PASSWORD: bloo_local
+    ports:
+      - "27432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # RAM budget: shared_buffers 128MB keeps the whole stack under ~600MB.
+    command: >
+      postgres -c shared_buffers=128MB -c work_mem=8MB -c max_connections=50
+      -c random_page_cost=1.1 -c effective_cache_size=512MB
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bloo -d blooai"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  app:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blooai-app
+    restart: unless-stopped
+    ports:
+      - "27810:27810"
+    environment:
+      BLOO_BIND: 0.0.0.0:27810
+      DATABASE_URL: postgres://bloo:bloo_local@db:5432/blooai
+      BLOO_DATA_DIR: /data
+      BLOO_CONTENT_DIR: /content
+      BLOO_AUTO_MIGRATE: "1"
+      RUST_LOG: info,bloo_api=debug,bloo_core=debug
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/data
+      - ./content:/content
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+    name: blooai_pgdata
+
+networks:
+  default:
+    name: blooai_net

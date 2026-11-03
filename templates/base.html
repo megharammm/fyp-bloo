@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Bloo AI{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="dot"></span> Bloo<span class="ai">AI</span>
+    </a>
+    <nav class="nav">
+      <a href="/">Chat</a>
+      <a href="/admin">Admin</a>
+      <span class="ver">v{{ version }}</span>
+    </nav>
+  </header>
+  <main class="{% block main_class %}shell{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="foot">
+    Campus knowledge, grounded. &middot; Bloo AI
+  </footer>
+</body>
+</html>
