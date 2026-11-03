@@ -66,6 +66,7 @@ Team workflow — branches, reviews, agent rules: **[docs/CONTRIBUTING.md](docs/
 | `cargo run -p bloo_api --bin worker` | Run the ingestion worker (claims jobs from Postgres) |
 | `scripts\make-test-pdfs.ps1` | Generate synthetic campus PDFs for testing |
 | `scripts\smoke-wp02.ps1` | End-to-end ingestion test: 30 uploads, dedupe, delete, crash recovery |
+| `scripts\smoke-wp03.ps1` | Retrieval + answering: hit@5, verbatim citations, refusals, SSE, p95 |
 | `scripts\test-thx01.ps1` | Send a real Bloo-shaped request to the self-hosted THX-01 sidecar |
 | `scripts\start-thx01.ps1` | Run THX-01 as a host process (recommended; avoids Docker/WSL memory) |
 | `make check` | fmt + clippy + test + check |
@@ -127,7 +128,7 @@ Steady-state RAM ≈ 250 MB, peak while ingesting ≈ 450 MB.
 | P0 scaffold — workspace, schema, compose, UI shells, scripts | ✅ done |
 | P1 parsing (`bloo-parse`) | ✅ done |
 | P2 ingestion + queue | ✅ done |
-| P3 retrieval + THX-01 + chat | ⬜ |
+| P3 retrieval + THX-01 + chat | ✅ done |
 | P4 chat UI | ⬜ |
 | P5 admin console | ⬜ |
 | P6 crawler | ⬜ |

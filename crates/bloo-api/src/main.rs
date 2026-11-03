@@ -18,8 +18,10 @@ mod routes;
 pub struct AppState {
     pub pool: PgPool,
     pub cfg: Arc<Config>,
-    /// Shared HTTP client for THX-01 (and, later, the chat LLM).
+    /// Shared HTTP client for THX-01 (and the chat LLM).
     pub http: reqwest::Client,
+    /// Local ONNX embedder, also used to embed incoming questions.
+    pub embedder: Arc<dyn bloo_rag::Embedder>,
 }
 
 /// Renders an Askama template into an `IntoResponse`.
@@ -72,6 +74,14 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("migrations applied");
     }
 
+    let embedder = bloo_rag::build(&cfg)
+        .context("cannot build the embedding model (see BLOO_EMBED_PROVIDER)")?;
+    tracing::info!(
+        embedder = embedder.name(),
+        dim = embedder.dim(),
+        "embedder ready"
+    );
+
     let state = AppState {
         pool,
         cfg: Arc::new(cfg),
@@ -80,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
             .user_agent(concat!("BlooAI/", env!("CARGO_PKG_VERSION")))
             .build()
             .context("cannot build the HTTP client")?,
+        embedder,
     };
 
     let app = Router::new()
@@ -89,6 +100,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(health))
         .route("/api/version", get(version))
         .route("/api/thx01/status", get(routes::thx01::status))
+        .route("/api/search", get(routes::ask::search))
+        .route("/api/chat", axum::routing::post(routes::ask::chat))
         .route(
             "/api/thx01/decide",
             axum::routing::post(routes::thx01::decide),
