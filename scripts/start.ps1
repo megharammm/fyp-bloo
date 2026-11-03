@@ -85,4 +85,4 @@ Start-Job -ScriptBlock {
 
 Write-Host "`nBloo AI live at http://127.0.0.1:27810  (Ctrl+C to stop)`n" -ForegroundColor Green
 $ErrorActionPreference = 'Continue'
-& cargo run --quiet -p bloo_api
+& cargo run --quiet -p bloo_api --bin bloo_api
