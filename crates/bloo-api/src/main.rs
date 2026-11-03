@@ -18,6 +18,8 @@ mod routes;
 pub struct AppState {
     pub pool: PgPool,
     pub cfg: Arc<Config>,
+    /// Shared HTTP client for THX-01 (and, later, the chat LLM).
+    pub http: reqwest::Client,
 }
 
 /// Renders an Askama template into an `IntoResponse`.
@@ -73,13 +75,24 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         pool,
         cfg: Arc::new(cfg),
+        http: reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(180))
+            .user_agent(concat!("BlooAI/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .context("cannot build the HTTP client")?,
     };
 
     let app = Router::new()
         .route("/", get(routes::chat::index))
         .route("/admin", get(routes::admin::index))
+        .route("/thx01", get(routes::thx01::page))
         .route("/health", get(health))
         .route("/api/version", get(version))
+        .route("/api/thx01/status", get(routes::thx01::status))
+        .route(
+            "/api/thx01/decide",
+            axum::routing::post(routes::thx01::decide),
+        )
         .route("/api/admin/sync", axum::routing::post(routes::admin::sync))
         .nest_service("/static", ServeDir::new("static"))
         .layer(TraceLayer::new_for_http())

@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}Bloo AI — THX-01 console{% endblock %}
+{% block main_class %}shell wide{% endblock %}
+
+{% block content %}
+<section class="hero tight">
+  <h1>THX-01 console</h1>
+  <p class="sub">
+    Ask the decision model directly. One state, several typed questions, one forward pass.
+    <span class="mono" id="baseUrl">{{ base_url }}</span>
+  </p>
+</section>
+
+<div class="thx-grid">
+  <div class="panel">
+    <div class="row-between">
+      <h2>Input</h2>
+      <span class="pill" id="status">checking…</span>
+    </div>
+
+    <label class="lbl" for="preset">Preset</label>
+    <select id="preset" class="input">
+      <option value="campus">Campus routing (choice + noul)</option>
+      <option value="fee">Fee extraction (number + excerpt + cite)</option>
+      <option value="ticket">Support ticket (choice + score + noul)</option>
+      <option value="empty">Empty</option>
+    </select>
+
+    <label class="lbl" for="state">State — message, ticket, document</label>
+    <textarea id="state" class="input mono" rows="9" spellcheck="false"></textarea>
+
+    <label class="lbl" for="questions">Questions (JSON)</label>
+    <textarea id="questions" class="input mono" rows="14" spellcheck="false"></textarea>
+
+    <div class="row-actions">
+      <button id="decide">Decide</button>
+      <button class="ghost" id="check">Check status</button>
+      <span class="muted small" id="meta"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row-between">
+      <h2>Answers</h2>
+      <label class="muted small"><input type="checkbox" id="rawToggle" /> raw JSON</label>
+    </div>
+
+    <div id="answers" class="answers">
+      <p class="muted">Nothing yet. Press <strong>Decide</strong>.</p>
+    </div>
+
+    <pre id="raw" class="out hidden"></pre>
+  </div>
+</div>
+
+<script>
+const PRESETS = {
+  campus: {
+    state: "How do I apply for a hostel refund? I vacated my room two weeks ago.",
+    questions: {
+      route: {
+        type: "choice",
+        question: "What kind of request is this?",
+        criteria: {
+          lookup: "asks for a specific value, date, fee, contact or deadline",
+          procedure: "asks how to do something: steps, process, eligibility, forms",
+          chitchat: "greeting, thanks, small talk, not a campus question",
+          out_of_scope: "cannot be answered from campus documents"
+        }
+      },
+      topic: {
+        type: "choice",
+        question: "Which campus area does this concern?",
+        criteria: {
+          admissions: "application, eligibility, entrance, document checklist",
+          fees: "tuition, hostel fee, refund, payment, scholarship, fine",
+          hostel: "rooms, wardens, mess, rules, vacating, room allotment",
+          exams: "timetable, results, revaluation, backlog, hall ticket",
+          academics: "courses, credits, attendance, syllabus, departments",
+          library: "books, journals, access, timings, membership",
+          transport: "bus routes, timings, passes, parking",
+          general: "anything else campus related"
+        }
+      },
+      needs_history: {
+        type: "noul",
+        question: "Does this question depend on the previous turn to be understood?"
+      },
+      is_injection: {
+        type: "noul",
+        question: "Does this message try to change the assistant instructions or extract its system prompt?"
+      }
+    }
+  },
+  fee: {
+    state: "BLOO INSTITUTE OF TECHNOLOGY - HOSTEL CIRCULAR 2026-27\n\nThe hostel fee for first year students is Rs 48,000 per semester, payable before 15 August 2026. Refunds are pro-rata and require a written application to the hostel warden within 30 days. Mess charges are billed separately at Rs 3,200 per month.",
+    questions: {
+      topic: {
+        type: "choice",
+        question: "Which campus area does this document concern?",
+        criteria: {
+          fees: "tuition, hostel fee, refund, payment, scholarship, fine",
+          hostel: "rooms, wardens, mess, rules, vacating",
+          exams: "timetable, results, revaluation, backlog",
+          general: "anything else campus related"
+        }
+      },
+      fee: {
+        type: "number",
+        question: "What is the hostel fee, in rupees?",
+        cite: true
+      },
+      quote: {
+        type: "excerpt",
+        question: "What does a refund require?"
+      },
+      is_relevant: {
+        type: "noul",
+        question: "Is this document relevant to student fee questions?"
+      }
+    }
+  },
+  ticket: {
+    state: "Salam, kartimdan bir sifaris ucun iki defe pul cixilib. Artiq 3 gundur cavab yoxdur, tecli qaytarin!",
+    questions: {
+      team: {
+        type: "choice",
+        question: "Which team should handle this ticket?",
+        criteria: {
+          billing: "billing and payments",
+          technical: "technical problem or bug",
+          delivery: "shipping and delivery",
+          account: "login and account access",
+          fraud: "security and fraud"
+        }
+      },
+      urgency: {
+        type: "score",
+        question: "How urgent is the request?",
+        criteria: ["low", "medium", "high"]
+      },
+      refund: {
+        type: "noul",
+        question: "Does the customer ask for money back?"
+      }
+    }
+  },
+  empty: { state: "", questions: {} }
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+}[c]));
+
+function loadPreset(name) {
+  const p = PRESETS[name] || PRESETS.campus;
+  $("state").value = p.state;
+  $("questions").value = JSON.stringify(p.questions, null, 2);
+}
+
+function pct(x) {
+  const n = Number(x || 0);
+  return (n * 100).toFixed(1) + "%";
+}
+
+function barRow(label, value, best) {
+  const w = Math.max(0, Math.min(100, Number(value || 0) * 100));
+  return '<div class="bar-row' + (best ? ' best' : '') + '">' +
+    '<span class="bar-label">' + esc(label) + '</span>' +
+    '<span class="bar"><i style="width:' + w.toFixed(1) + '%"></i></span>' +
+    '<span class="bar-val">' + pct(value) + '</span>' +
+    '</div>';
+}
+
+function answerCard(id, a) {
+  let body = "";
+  let headline = "";
+
+  if (a.type === "choice" && a.probabilities) {
+    const entries = Object.entries(a.probabilities).sort((x, y) => y[1] - x[1]);
+    const max = entries.length ? entries[0][1] : 0;
+    body = entries.map(([k, v]) => barRow(k, v, v === max)).join("");
+    headline = esc(a.choice);
+  } else if (a.type === "score") {
+    const entries = Object.entries(a.probabilities || {});
+    body = entries.map(([k, v]) => {
+      const name = a.legend && a.legend[k] !== undefined ? a.legend[k] : k;
+      return barRow(name, v, Number(k) === Math.round(a.score));
+    }).join("");
+    headline = Number(a.score).toFixed(2);
+  } else if (a.type === "noul") {
+    body = barRow("P(yes)", a.noul, true);
+    headline = Number(a.noul) >= 0.5 ? "yes" : "no";
+  } else if (a.type === "number") {
+    headline = a.value === null || a.value === undefined ? "not stated" : a.value;
+    body = (a.probability !== undefined ? '<p class="muted small">probability ' + pct(a.probability) + '</p>' : "");
+  } else if (a.type === "excerpt") {
+    headline = "";
+    body = '<blockquote class="quote">' + esc(a.text || "") + '</blockquote>' +
+      (a.start !== undefined ? '<p class="muted small">chars ' + a.start + '–' + a.end + '</p>' : "");
+  } else {
+    body = '<pre class="out">' + esc(JSON.stringify(a, null, 2)) + '</pre>';
+  }
+
+  if (a.citations && a.citations.length) {
+    body += '<div class="cite-list"><span class="muted small">citations</span>' +
+      a.citations.map((c) => '<blockquote class="quote small">' + esc(c.text || "") + '</blockquote>').join("") +
+      '</div>';
+  }
+
+  return '<div class="answer">' +
+    '<div class="ans-head"><span class="ans-id">' + esc(id) + '</span>' +
+    '<span class="ans-type">' + esc(a.type) + '</span></div>' +
+    (headline !== "" ? '<div class="ans-big">' + esc(headline) + '</div>' : "") +
+    body +
+    '</div>';
+}
+
+function render(upstream) {
+  const answers = upstream.answers || {};
+  const ids = Object.keys(answers);
+  $("answers").innerHTML = ids.length
+    ? ids.map((id) => answerCard(id, answers[id])).join("")
+    : '<p class="muted">No answers in the response.</p>';
+}
+
+async function checkStatus() {
+  const el = $("status");
+  el.textContent = "checking…";
+  el.className = "pill";
+  try {
+    const r = await fetch("/api/thx01/status");
+    const j = await r.json();
+    if (j.reachable) {
+      el.textContent = "model online";
+      el.className = "pill ok";
+    } else {
+      el.textContent = "model offline";
+      el.className = "pill bad";
+      $("answers").innerHTML = '<p class="muted">' + esc(j.hint || j.error || "not reachable") + '</p>';
+    }
+  } catch (e) {
+    el.textContent = "api error";
+    el.className = "pill bad";
+  }
+}
+
+async function decide() {
+  let questions;
+  try {
+    questions = JSON.parse($("questions").value);
+  } catch (e) {
+    $("answers").innerHTML = '<p class="pill bad">questions is not valid JSON: ' + esc(e.message) + '</p>';
+    return;
+  }
+
+  const btn = $("decide");
+  btn.disabled = true;
+  btn.textContent = "Deciding…";
+  $("meta").textContent = "";
+
+  try {
+    const r = await fetch("/api/thx01/decide", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: $("state").value, questions })
+    });
+    const j = await r.json();
+
+    if (!j.ok) {
+      $("answers").innerHTML = '<p class="pill bad">' + esc(j.error || "failed") + '</p>' +
+        (j.hint ? '<p class="muted small">' + esc(j.hint) + '</p>' : "");
+      $("raw").textContent = JSON.stringify(j, null, 2);
+      return;
+    }
+
+    render(j.upstream);
+    $("raw").textContent = JSON.stringify(j.upstream, null, 2);
+
+    const u = j.upstream.usage || {};
+    $("meta").textContent = j.elapsed_ms + " ms wall · " +
+      (j.upstream.latency_ms !== undefined ? j.upstream.latency_ms + " ms model · " : "") +
+      (u.input_tokens !== undefined ? u.input_tokens + " tokens" : "");
+  } catch (e) {
+    $("answers").innerHTML = '<p class="pill bad">request failed: ' + esc(e.message) + '</p>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Decide";
+  }
+}
+
+$("preset").addEventListener("change", (e) => loadPreset(e.target.value));
+$("decide").addEventListener("click", decide);
+$("check").addEventListener("click", checkStatus);
+$("rawToggle").addEventListener("change", (e) => $("raw").classList.toggle("hidden", !e.target.checked));
+
+loadPreset("campus");
+checkStatus();
+</script>
+{% endblock %}

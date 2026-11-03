@@ -292,6 +292,10 @@ THX-01 is **open source** — Apache 2.0, 322M parameters, weights on Hugging Fa
 Point `HALX_BASE_URL` at either. Verify with `scripts\check-halx.ps1` (cloud) or
 `scripts\test-thx01.ps1` (local). Build details: `tools/thx01-local/README.md`.
 
+**In the browser:** <http://127.0.0.1:27810/thx01> is a live console — paste a state, edit the
+questions JSON, press Decide, and watch the calibrated probabilities. It is the fastest way to
+check whether the model is up and whether a question schema is any good, without touching code.
+
 > **Run the model on the host, not in Docker, while developing.**
 > `scripts\start-thx01.ps1` creates `.venv-thx01` and serves on `127.0.0.1:8095`.
 > The app already runs on the host in dev, so this is a direct loopback call, and it avoids

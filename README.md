@@ -32,6 +32,7 @@ database, builds, and opens the browser.
 |---|---|
 | <http://127.0.0.1:27810> | chat |
 | <http://127.0.0.1:27810/admin> | knowledge console |
+| <http://127.0.0.1:27810/thx01> | THX-01 console — test the decision model directly |
 | <http://127.0.0.1:27810/health> | health |
 
 Full container build (demo day):
