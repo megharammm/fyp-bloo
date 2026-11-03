@@ -269,6 +269,34 @@ this; we honour it).
 
 Exact payloads: **Appendix A**.
 
+#### If you cannot get a key
+
+The docs say "create an API key in the HAL-X console", but **no console is publicly linked**
+and `GET /v1/models` returns `401` without one. Keys are issued by the HAL-X team on request.
+Ask for the **THX-01 decisions grant** (`/v1/systemone`) with **model `thx-01` allowed** — a
+key without the grant returns `403`.
+
+Verify any key in five seconds:
+
+```powershell
+scripts\check-halx.ps1
+```
+
+**Do not block WP-03 on this.** Every THX-01 call sits behind `trait Decider`, selected by
+`BLOO_DECIDER=thx|local|off` (default: `thx` when a key is present, `local` otherwise):
+
+| Capability | `thx` | `local` fallback |
+|---|---|---|
+| route / topic | `choice` | keyword rules over `documents.category`; no filter if unsure |
+| rerank | batch `score` | RRF order, or `CrossEncoderReranker` behind `--features local-rerank` |
+| citation span | `excerpt` + `cite` | split chunk into sentences, pick max token-overlap sentence — still a **verbatim substring** |
+| grounding | `noul` | every number/date in the answer must appear in the context (regex), plus `cosine(answer, context) ≥ 0.72` |
+| injection screen | `noul` | disabled (offline demo only) |
+
+`/health` reports `decider: "thx-01" | "local"`, so the demo can never silently pretend.
+WP-07 runs the golden set under **both** deciders and prints the delta — that ablation table
+is a stronger report section than "we called an API".
+
 ### 8.2 Chat LLM
 
 Any OpenAI-compatible `/chat/completions` with `stream: true`. Used **only** to turn retrieved
@@ -732,6 +760,14 @@ the container, which could reach Trivya's containers. The button is content-only
 ---
 
 ## Appendix A — THX-01 payloads
+
+**Verify a key first** (cheapest authenticated call, no tokens consumed):
+
+```powershell
+scripts\check-halx.ps1
+# or: curl -H "Authorization: Bearer $HALX_API_KEY" https://api.hal-x.ai/v1/models
+# 200 -> valid, 401 -> bad key, 403 -> no THX-01 grant
+```
 
 All calls: `POST {HALX_BASE_URL}/v1/systemone`, header `Authorization: Bearer $HALX_API_KEY`,
 body `{"model":"thx-01","state":…,"questions":…}`. Batch: `/v1/systemone/batch` with `items`.
