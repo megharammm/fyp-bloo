@@ -134,10 +134,12 @@ with citations can be 2-4 forward passes.
 
 | Workload | GPU | Laptop CPU |
 |---|---|---|
-| route (1 choice question) | ~10 ms | ~250-400 ms |
-| rerank 40 chunks (batch) | ~40 ms | **3-6 s — do not do this** |
-| citation on 1 chunk (excerpt + cite) | ~20 ms | ~400-700 ms |
-| classify 10k chunks offline (batched) | ~10 s | ~10-20 min |
+| route (1 choice question) | ~10 ms | **96 ms model / 230 ms wall** |
+| rerank 40 chunks (batch) | ~40 ms | not measured; expect seconds |
+| citation on 1 chunk (excerpt + cite) | ~20 ms | ~2–3 s |
+| choice + number + cite + excerpt | ~50 ms | **4.99 s** |
+
+Measured on this project's laptop, `doofz/THX-01` fp32 on CPU, 45-word document.
 
 **Consequences for Bloo:**
 

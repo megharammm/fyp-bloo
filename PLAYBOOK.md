@@ -306,6 +306,16 @@ check whether the model is up and whether a question schema is any good, without
 **The 10 ms headline is one GPU.** On a laptop CPU each forward pass is 200–500 ms, and
 `number` / `excerpt` / `cite` are *extra* passes. That changes three decisions:
 
+**Measured on this laptop** (`doofz/THX-01`, fp32, CPU, 45-word document):
+
+| Request | Model time | Wall |
+|---|---|---|
+| 1 × `choice`, 4 options | **96 ms** | 230 ms |
+| `choice` + `number` + `cite` + `excerpt` | **4 990 ms** | 5.0 s |
+
+So routing is cheap enough for the query path (~230 ms). Extraction and citation cost ~2–3 s
+each — they belong at **ingest time**, or on the **top-1 chunk only** at query time.
+
 - **Rerank with the local cross-encoder**, not THX-01. 40 chunks in ~30 ms vs seconds.
   `ThxScoreReranker` is enabled only when a GPU is present.
 - **At most two THX-01 calls per query**: one `choice` route, one `excerpt`+`cite` for the
@@ -379,6 +389,33 @@ image or ship it in git LFS** so the demo works offline.
 
 Why not an embeddings API? No key, no per-query cost, no network dependency during a viva,
 and 384 d keeps the index tiny (~220 MB for 150 k chunks).
+
+**Decision (locked):** embeddings stay local. The remote backend exists in
+`bloo_rag::embed::OpenAiCompatEmbedder` (Jina / Mistral / OpenAI) but is **dormant** — it is
+only constructed when `BLOO_EMBED_PROVIDER=openai`. The contract is `Embedder`:
+
+```rust
+trait Embedder {
+    fn dim(&self) -> usize;
+    fn name(&self) -> &'static str;
+    async fn embed_documents(&self, texts: &[String]) -> Result<Vec<Embedding>>;
+    async fn embed_query(&self, text: &str) -> Result<Embedding>;
+}
+```
+
+| Provider | Dims | RAM | Notes |
+|---|---|---|---|
+| `local` (default) | 384 | ~130 MB | ONNX, offline, implemented in WP-02 |
+| `openai` (dormant) | provider's | 0 | Jina 1M tokens/mo, Gemini, Mistral… |
+| `mock` | 384 | 0 | deterministic, for tests and plumbing |
+
+Switching to `openai` changes the dimension, which is a `vector(N)` migration **plus a full
+re-index**. `parse_embeddings` refuses a mismatched response and names the migration, so the
+index cannot be silently corrupted. Today the corpus is empty — that is the only free moment
+to change your mind; afterwards it is a re-index job.
+
+The reason local wins is arithmetic: the embedder is ~130 MB, THX-01 is ~2 GB. If RAM is the
+constraint, the lever is the decision model, not the embeddings.
 
 ---
 
