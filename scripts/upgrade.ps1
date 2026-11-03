@@ -1,4 +1,4 @@
-# Bloo AI — one-command upgrade.
+# Bloo AI - one-command upgrade.
 #   git pull  ->  rebuild image  ->  migrate  ->  restart  ->  re-sync content
 #
 # Safe by construction: the compose project is pinned to `blooai`, so this can
@@ -22,23 +22,23 @@ $compose = @('compose', '-p', 'blooai', '-f', 'docker-compose.yml')
 
 function Step($n, $msg) { Write-Host "`n[$n] $msg" -ForegroundColor Cyan }
 
-# ── 0. sanity: is something else already using our ports? ────────────────────
+# -- 0. sanity: is something else already using our ports? --------------------
 Step 0 'Checking ports 27432 / 27810'
 & (Join-Path $PSScriptRoot 'check-ports.ps1') -AllowBound
 
-# ── 1. code ──────────────────────────────────────────────────────────────────
+# -- 1. code ------------------------------------------------------------------
 Step 1 'git pull --ff-only'
 git pull --ff-only
 if ($LASTEXITCODE -ne 0) { throw "git pull failed. Resolve the branch state manually." }
 $commit = (git rev-parse --short HEAD).Trim()
 Write-Host "    now at $commit" -ForegroundColor DarkGray
 
-# ── 2. database ──────────────────────────────────────────────────────────────
+# -- 2. database --------------------------------------------------------------
 Step 2 'Starting Postgres (blooai-db on 27432)'
 & docker @compose up -d db
 if ($LASTEXITCODE -ne 0) { throw "docker compose up db failed." }
 
-Write-Host '    waiting for healthy…' -ForegroundColor DarkGray
+Write-Host '    waiting for healthy...' -ForegroundColor DarkGray
 $deadline = (Get-Date).AddSeconds(90)
 do {
     Start-Sleep -Seconds 2
@@ -48,7 +48,7 @@ do {
 if ($status -ne 'healthy') { throw "Postgres did not become healthy. Run: docker logs blooai-db" }
 Write-Host '    healthy' -ForegroundColor Green
 
-# ── 3. app image ─────────────────────────────────────────────────────────────
+# -- 3. app image -------------------------------------------------------------
 if (-not $SkipBuild) {
     Step 3 'Building blooai-app (release, cached)'
     & docker @compose --profile full build app
@@ -57,12 +57,12 @@ if (-not $SkipBuild) {
     Step 3 'Skipping image build (-SkipBuild)'
 }
 
-# ── 4. run ───────────────────────────────────────────────────────────────────
+# -- 4. run -------------------------------------------------------------------
 Step 4 'Restarting app on 27810'
 & docker @compose --profile full up -d app
 if ($LASTEXITCODE -ne 0) { throw "docker compose up app failed." }
 
-Write-Host '    waiting for /health…' -ForegroundColor DarkGray
+Write-Host '    waiting for /health...' -ForegroundColor DarkGray
 $deadline = (Get-Date).AddSeconds(60)
 $ok = $false
 do {
@@ -79,7 +79,7 @@ if (-not $ok) {
     Write-Host '    healthy' -ForegroundColor Green
 }
 
-# ── 5. content ───────────────────────────────────────────────────────────────
+# -- 5. content ---------------------------------------------------------------
 if (-not $SkipContent) {
     Step 5 'Syncing content/ + data/uploads (changed files only)'
     try {

@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   gate:
-    name: fmt · clippy · test
+    name: gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

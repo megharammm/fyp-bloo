@@ -1,4 +1,4 @@
-# Bloo AI — dev loop. Postgres in Docker, API on the host (fast rebuilds).
+# Bloo AI - dev loop. Postgres in Docker, API on the host (fast rebuilds).
 # Frontend and backend are one Rust binary; there is no Node process anywhere.
 
 [CmdletBinding()]
@@ -10,15 +10,15 @@ Set-Location $repo
 
 if (-not (Test-Path (Join-Path $repo '.env'))) {
     Copy-Item (Join-Path $repo '.env.example') (Join-Path $repo '.env')
-    Write-Host 'created .env from .env.example — add HALX_API_KEY and LLM_API_KEY' -ForegroundColor Yellow
+    Write-Host 'created .env from .env.example - add HALX_API_KEY and LLM_API_KEY' -ForegroundColor Yellow
 }
 
 & (Join-Path $PSScriptRoot 'check-ports.ps1') -AllowBound
 
-Write-Host '`nstarting postgres…' -ForegroundColor Cyan
+Write-Host '`nstarting postgres...' -ForegroundColor Cyan
 & docker compose -p blooai -f docker-compose.yml up -d db
 
-Write-Host 'waiting for healthy…' -ForegroundColor DarkGray
+Write-Host 'waiting for healthy...' -ForegroundColor DarkGray
 $deadline = (Get-Date).AddSeconds(60)
 do {
     Start-Sleep -Seconds 2

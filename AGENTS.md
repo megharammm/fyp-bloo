@@ -39,4 +39,5 @@ All three must be green before and after your change.
 | What is the schema? | `migrations/0001_init.sql` |
 | How do I upgrade the stack? | `scripts/upgrade.ps1` |
 | How do I branch, commit, get reviewed? | `docs/CONTRIBUTING.md` |
+| How do I (re)apply branch protection? | `scripts/protect-main.ps1` |
 | Autonomous dev protocol | `PLAYBOOK.md` → §17 Agent walkthrough skill |

@@ -96,6 +96,29 @@ Then push and open a PR. CI runs the same gate on Ubuntu — if it is red, the P
 - If review asks for changes, push more commits to the same branch — do not force-push after
   review has started.
 
+### 5.1 Branch protection
+
+Already applied to `main`:
+
+| Rule | Value |
+|---|---|
+| Pull request required | yes |
+| Approvals | 1 (stale approvals dismissed on push) |
+| Required status check | `gate` (CI) |
+| Branch must be up to date | yes |
+| Linear history | yes (squash/rebase only) |
+| Force push / deletion | blocked |
+| Admins can bypass | yes, for hotfixes only |
+
+Re-apply or verify at any time (idempotent):
+
+```powershell
+scripts\protect-main.ps1
+```
+
+The owner is allowed to bypass so a demo-day hotfix is never blocked, but that is an
+emergency valve, not the workflow.
+
 ---
 
 ## 6. AI agents: read this twice

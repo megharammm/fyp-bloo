@@ -1,4 +1,4 @@
-# Bloo AI — seed the demo corpus.
+# Bloo AI - seed the demo corpus.
 # 1. start the stack, 2. sync content/seed into the index, 3. print what landed.
 
 [CmdletBinding()]
