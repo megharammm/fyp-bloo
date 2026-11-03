@@ -88,6 +88,24 @@ impl Config {
             .filter(|k| !k.is_empty())
             .ok_or_else(|| anyhow::anyhow!("LLM_API_KEY is not set (see .env.example)"))
     }
+
+    /// Full chat-completions URL.
+    ///
+    /// `LLM_BASE_URL` is a *base* (`https://host/v1`). People paste the full endpoint
+    /// often enough that we normalise it instead of failing: both forms work.
+    pub fn chat_url(&self) -> String {
+        resolve_chat_url(&self.llm_base_url)
+    }
+}
+
+/// Pure URL normalisation, unit-tested below.
+pub fn resolve_chat_url(base: &str) -> String {
+    let base = base.trim().trim_end_matches('/');
+    if base.ends_with("/chat/completions") {
+        base.to_string()
+    } else {
+        format!("{base}/chat/completions")
+    }
 }
 
 /// Pure mapping, unit-tested below. Kept out of `Config` so it needs no env access.
@@ -126,5 +144,24 @@ mod tests {
     fn unknown_mode_is_auto() {
         assert_eq!(resolve_decider("", true), "thx-01");
         assert_eq!(resolve_decider("nonsense", false), "local");
+    }
+
+    #[test]
+    fn chat_url_accepts_base_or_full_endpoint() {
+        use super::resolve_chat_url;
+
+        assert_eq!(
+            resolve_chat_url("https://opencode.ai/inference/openai/v1"),
+            "https://opencode.ai/inference/openai/v1/chat/completions"
+        );
+        // the mistake made in .env: pasting the full endpoint
+        assert_eq!(
+            resolve_chat_url("https://opencode.ai/inference/openai/v1/chat/completions"),
+            "https://opencode.ai/inference/openai/v1/chat/completions"
+        );
+        assert_eq!(
+            resolve_chat_url("https://api.openai.com/v1/"),
+            "https://api.openai.com/v1/chat/completions"
+        );
     }
 }

@@ -331,6 +331,28 @@ Any OpenAI-compatible `/chat/completions` with `stream: true`. Used **only** to 
 context into readable prose. It never sees the whole corpus, never decides what to retrieve,
 and never produces citations — those come from THX-01 offsets.
 
+`LLM_BASE_URL` is a **base** (`https://host/v1`); Bloo appends `/chat/completions`.
+`Config::chat_url` also accepts a pasted full endpoint, so that mistake cannot break a demo.
+
+| Provider | `LLM_BASE_URL` | Model example |
+|---|---|---|
+| OpenCode Console | `https://opencode.ai/inference/openai/v1` | `deepseek-v4.1-flash` |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| Local Ollama | `http://127.0.0.1:11434/v1` | `qwen2.5:7b` |
+
+Verify before blaming the code:
+
+```powershell
+scripts\check-llm.ps1
+```
+
+It normalises the URL, sends a one-token request, and explains `401` (bad key), `402` (no
+credits), `403` (model not allowed for the key), `404` (wrong base) and `429`.
+
+> OpenCode **Go subscription** keys are not API keys. Console API keys are created at
+> `https://opencode.ai/console` and are the only ones that work against the inference API.
+
 ### 8.3 Embeddings — local, no API
 
 `fastembed` + `BAAI/bge-small-en-v1.5`, 384 d, ONNX, CPU, ~130 MB while running, ~34 MB on
@@ -1008,6 +1030,8 @@ Implementation notes:
 | `port 27432 already in use` | foreign process | `scripts/check-ports.ps1`; find the owner; **do not** change Bloo's port |
 | `docker: … dockerDesktopLinuxEngine` | Docker Desktop stopped | start it, then rerun |
 | `NativeCommandError` after `Compiling bloo_api` | PowerShell 5.1 turns a native command's stderr into a terminating error when `2>&1` is used under `ErrorActionPreference=Stop` | fixed in the scripts — never redirect cargo; check `$LASTEXITCODE` instead |
+| LLM `401` | key rejected — Go subscription keys are not API keys | create a Console key at `opencode.ai/console`; run `scripts\check-llm.ps1` |
+| LLM `404` | `LLM_BASE_URL` includes `/chat/completions` or the wrong path | base only: `https://host/v1`; the normaliser fixes trailing `/chat/completions` |
 | Docker Desktop returns 500 on `docker ps` | 322M model loading inside the WSL2 VM | do not run THX-01 in Docker on a laptop; use `scripts\start-thx01.ps1` |
 | `HALX_API_KEY is not set` | missing `.env` | copy `.env.example`, add keys |
 | Empty answers | nothing published | `/admin` → publish a document |
