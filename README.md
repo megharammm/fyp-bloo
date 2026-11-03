@@ -129,7 +129,7 @@ Steady-state RAM ≈ 250 MB, peak while ingesting ≈ 450 MB.
 | P1 parsing (`bloo-parse`) | ✅ done |
 | P2 ingestion + queue | ✅ done |
 | P3 retrieval + THX-01 + chat | ✅ done |
-| P4 chat UI | ⬜ |
+| P4 chat UI | ✅ done |
 | P5 admin console | ⬜ |
 | P6 crawler | ⬜ |
 | P7 eval | ⬜ |

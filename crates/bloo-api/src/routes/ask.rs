@@ -74,6 +74,101 @@ pub struct AskRequest {
     pub stream: bool,
 }
 
+#[derive(Deserialize)]
+pub struct FeedbackRequest {
+    pub message_id: uuid::Uuid,
+    /// 1 = thumbs up, -1 = thumbs down.
+    pub verdict: i16,
+    pub note: Option<String>,
+}
+
+/// `POST /api/feedback` — store a thumbs verdict against an assistant message.
+pub async fn feedback(State(state): State<AppState>, Json(req): Json<FeedbackRequest>) -> Response {
+    if req.verdict != 1 && req.verdict != -1 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "verdict must be 1 or -1" })),
+        )
+            .into_response();
+    }
+
+    match sqlx::query("insert into feedback (message_id, verdict, note) values ($1, $2, $3)")
+        .bind(req.message_id)
+        .bind(req.verdict)
+        .bind(req.note.as_deref())
+        .execute(&state.pool)
+        .await
+    {
+        Ok(_) => Json(json!({ "ok": true })).into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+/// Persist the exchange and its citations. Returns the assistant message id.
+async fn persist_exchange(
+    state: &AppState,
+    question: &str,
+    answer: &str,
+    citations: &[bloo_core::Citation],
+    route: Option<&str>,
+    latency_ms: u64,
+    model: &str,
+) -> Option<uuid::Uuid> {
+    let title: String = question.chars().take(80).collect();
+
+    let conversation: uuid::Uuid =
+        sqlx::query_scalar("insert into conversations (title) values ($1) returning id")
+            .bind(title)
+            .fetch_one(&state.pool)
+            .await
+            .ok()?;
+
+    sqlx::query("insert into messages (conversation_id, role, content) values ($1, 'user', $2)")
+        .bind(conversation)
+        .bind(question)
+        .execute(&state.pool)
+        .await
+        .ok()?;
+
+    let message: uuid::Uuid = sqlx::query_scalar(
+        "insert into messages (conversation_id, role, content, route, latency_ms, model)
+         values ($1, 'assistant', $2, $3, $4, $5) returning id",
+    )
+    .bind(conversation)
+    .bind(answer)
+    .bind(route)
+    .bind(latency_ms as i32)
+    .bind(model)
+    .fetch_one(&state.pool)
+    .await
+    .ok()?;
+
+    for (ord, citation) in citations.iter().enumerate() {
+        let _ = sqlx::query(
+            "insert into citations
+                (message_id, title, section_path, kind, url, page_label, quote, score, ord)
+             values ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        )
+        .bind(message)
+        .bind(&citation.title)
+        .bind(&citation.section_path)
+        .bind(&citation.kind)
+        .bind(&citation.url)
+        .bind(&citation.page_label)
+        .bind(&citation.quote)
+        .bind(citation.score)
+        .bind(ord as i32)
+        .execute(&state.pool)
+        .await;
+    }
+
+    Some(message)
+}
+
 /// `POST /api/chat` — JSON by default, SSE when `"stream": true`.
 pub async fn chat(State(state): State<AppState>, Json(req): Json<AskRequest>) -> Response {
     if req.question.trim().is_empty() {
@@ -114,20 +209,34 @@ async fn json_chat(state: AppState, req: AskRequest) -> Response {
     )
     .await
     {
-        Ok(out) => Json(json!({
-            "answer": out.answer,
-            "refused": out.refused,
-            "citations": out.citations,
-            "meta": {
-                "route": out.route,
-                "topic": out.topic,
-                "retrieved": out.retrieved,
-                "best_similarity": out.best_similarity,
-                "latency_ms": out.latency_ms,
-                "model": out.model,
-            }
-        }))
-        .into_response(),
+        Ok(out) => {
+            let message_id = persist_exchange(
+                &state,
+                &req.question,
+                &out.answer,
+                &out.citations,
+                out.route.as_deref(),
+                out.latency_ms,
+                &out.model,
+            )
+            .await;
+
+            Json(json!({
+                "answer": out.answer,
+                "refused": out.refused,
+                "citations": out.citations,
+                "message_id": message_id,
+                "meta": {
+                    "route": out.route,
+                    "topic": out.topic,
+                    "retrieved": out.retrieved,
+                    "best_similarity": out.best_similarity,
+                    "latency_ms": out.latency_ms,
+                    "model": out.model,
+                }
+            }))
+            .into_response()
+        }
         Err(err) => (
             StatusCode::BAD_GATEWAY,
             Json(json!({ "error": err.to_string() })),
@@ -164,6 +273,17 @@ async fn stream_chat(state: AppState, req: AskRequest) -> Response {
         };
 
         if let Some(refusal) = prepared.refusal {
+            let message_id = persist_exchange(
+                &state,
+                &req.question,
+                &refusal,
+                &[],
+                None,
+                started.elapsed().as_millis() as u64,
+                "refusal",
+            )
+            .await;
+
             let _ = tx
                 .send(Ok(Event::default()
                     .event("token")
@@ -176,8 +296,12 @@ async fn stream_chat(state: AppState, req: AskRequest) -> Response {
                 .await;
             let _ = tx
                 .send(Ok(Event::default().event("done").data(
-                    json!({ "latency_ms": started.elapsed().as_millis() as u64, "refused": true })
-                        .to_string(),
+                    json!({
+                        "latency_ms": started.elapsed().as_millis() as u64,
+                        "refused": true,
+                        "message_id": message_id,
+                    })
+                    .to_string(),
                 )))
                 .await;
             return;
@@ -245,11 +369,24 @@ async fn stream_chat(state: AppState, req: AskRequest) -> Response {
                 .event("citations")
                 .data(json!({ "citations": citations }).to_string())))
             .await;
+
+        let message_id = persist_exchange(
+            &state,
+            &req.question,
+            &full,
+            &citations,
+            prepared.route.as_deref(),
+            started.elapsed().as_millis() as u64,
+            llm.model(),
+        )
+        .await;
+
         let _ = tx
             .send(Ok(Event::default().event("done").data(
                 json!({
                     "latency_ms": started.elapsed().as_millis() as u64,
                     "refused": false,
+                    "message_id": message_id,
                 })
                 .to_string(),
             )))
