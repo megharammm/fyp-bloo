@@ -102,6 +102,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/thx01/status", get(routes::thx01::status))
         .route("/api/search", get(routes::ask::search))
         .route("/api/chat", axum::routing::post(routes::ask::chat))
+        .route("/api/feedback", axum::routing::post(routes::ask::feedback))
         .route(
             "/api/thx01/decide",
             axum::routing::post(routes::thx01::decide),

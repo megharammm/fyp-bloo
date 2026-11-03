@@ -9,36 +9,241 @@
 
 <section class="chat-card" id="chat">
   <div class="messages" id="messages">
-    <div class="msg bot">
-      <div class="bubble">
-        <p>Hi. I can answer questions about admissions, fees, hostel, exams and departments.</p>
-        <p class="muted">Try: “What is the hostel refund policy?”</p>
+    <div class="empty" id="empty">
+      <p class="muted">Try one of these</p>
+      <div class="chips">
+        <button class="chip" type="button">What is the hostel fee per semester?</button>
+        <button class="chip" type="button">How many books can an undergraduate borrow?</button>
+        <button class="chip" type="button">When does the revaluation window open?</button>
+        <button class="chip" type="button">What are the mess timings?</button>
       </div>
     </div>
   </div>
 
   <form class="composer" id="composer">
-    <input id="q" name="q" placeholder="Ask a question…" autocomplete="off" />
-    <button type="submit">Send</button>
+    <input id="q" name="q" placeholder="Ask a question…" autocomplete="off" autofocus />
+    <button id="send" type="submit">Send</button>
+    <button id="stop" class="ghost hidden" type="button">Stop</button>
   </form>
-  <p class="hint">Scaffold build · retrieval + generation land in P2 · see PLAYBOOK.md</p>
+  <p class="hint">Answers come only from published campus documents. Every claim cites its source.</p>
 </section>
 
 <script>
-  // Placeholder wiring only. P4 replaces this with SSE streaming.
-  const form = document.getElementById('composer');
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const input = document.getElementById('q');
-    const text = input.value.trim();
-    if (!text) return;
-    const box = document.getElementById('messages');
-    box.insertAdjacentHTML('beforeend',
-      `<div class="msg user"><div class="bubble">${text.replace(/[<>&]/g, '')}</div></div>`);
-    box.insertAdjacentHTML('beforeend',
-      `<div class="msg bot"><div class="bubble muted">Chat endpoint not wired yet (P2).</div></div>`);
-    input.value = '';
-    box.scrollTop = box.scrollHeight;
+const messagesEl = document.getElementById('messages');
+const emptyEl = document.getElementById('empty');
+const form = document.getElementById('composer');
+const input = document.getElementById('q');
+const sendBtn = document.getElementById('send');
+const stopBtn = document.getElementById('stop');
+
+let controller = null;
+let lastQuestion = '';
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function inline(s) {
+  return s
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
+}
+
+// Deliberately small markdown subset: paragraphs, lists, pipe tables, bold/code.
+function render(text) {
+  const safe = esc(text).replace(/\r/g, '');
+  return safe.split(/\n{2,}/).map((block) => {
+    const lines = block.split('\n').filter((l) => l.trim() !== '');
+    if (lines.length === 0) return '';
+
+    if (lines.every((l) => l.trim().startsWith('|')) && lines.length >= 2) {
+      const rows = lines.filter((l) => !/^\|[\s:\-|]+\|$/.test(l.trim()));
+      const html = rows.map((l, i) => {
+        const cells = l.split('|').slice(1, -1).map((c) => {
+          const tag = i === 0 ? 'th' : 'td';
+          return '<' + tag + '>' + inline(c.trim()) + '</' + tag + '>';
+        }).join('');
+        return '<tr>' + cells + '</tr>';
+      }).join('');
+      return '<table>' + html + '</table>';
+    }
+
+    if (lines.every((l) => l.trim().startsWith('- '))) {
+      return '<ul>' + lines.map((l) => '<li>' + inline(l.trim().slice(2)) + '</li>').join('') + '</ul>';
+    }
+
+    return '<p>' + inline(block.trim()).replace(/\n/g, '<br>') + '</p>';
+  }).join('');
+}
+
+function renderCitations(list) {
+  if (!list || !list.length) return '';
+  const cards = list.map((c) => {
+    const meta = [c.section_path, c.page_label].filter(Boolean).map(esc).join(' · ');
+    const link = c.url
+      ? '<a class="cite-link" href="' + esc(c.url) + '" target="_blank" rel="noopener">Open source</a>'
+      : '';
+    return '<div class="cite-card">' +
+      '<div class="cite-head"><span class="cite-title">' + esc(c.title) + '</span>' +
+      '<span class="cite-meta">' + meta + '</span></div>' +
+      '<blockquote>' + esc(c.quote) + '</blockquote>' + link +
+      '</div>';
+  }).join('');
+  return '<div class="cites"><div class="cites-label">Sources</div>' + cards + '</div>';
+}
+
+function renderFeedback(messageId) {
+  if (!messageId) return '';
+  return '<div class="feedback" data-message-id="' + esc(messageId) + '">' +
+    '<span class="muted small">Was this helpful?</span>' +
+    '<button type="button" data-v="1">Yes</button>' +
+    '<button type="button" data-v="-1">No</button>' +
+    '<span class="fb-note small muted"></span></div>';
+}
+
+function scrollDown() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addBubble(role, html) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + role;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = html;
+  wrap.appendChild(bubble);
+  messagesEl.appendChild(wrap);
+  scrollDown();
+  return bubble;
+}
+
+function parseEvent(raw) {
+  let event = 'message';
+  let data = '';
+  raw.split('\n').forEach((line) => {
+    if (line.startsWith('event:')) event = line.slice(6).trim();
+    else if (line.startsWith('data:')) data += line.slice(5).trim();
   });
+  if (!data) return null;
+  try { return { event: event, data: JSON.parse(data) }; } catch (e) { return null; }
+}
+
+async function ask(question) {
+  const text = (question || '').trim();
+  if (!text || controller) return;
+
+  lastQuestion = text;
+  if (emptyEl && emptyEl.parentNode) emptyEl.parentNode.removeChild(emptyEl);
+
+  addBubble('user', '<p>' + esc(text) + '</p>');
+  const bubble = addBubble('bot', '<span class="typing"><i></i><i></i><i></i></span>');
+
+  controller = new AbortController();
+  stopBtn.classList.remove('hidden');
+  sendBtn.disabled = true;
+
+  const state = { text: '', citations: [], done: null };
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: text, stream: true }),
+      signal: controller.signal
+    });
+
+    if (!res.ok || !res.body) {
+      const body = await res.text();
+      throw new Error(body || ('HTTP ' + res.status));
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+
+      let idx;
+      while ((idx = buffer.indexOf('\n\n')) >= 0) {
+        const raw = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        const ev = parseEvent(raw);
+        if (!ev) continue;
+
+        if (ev.event === 'token') {
+          state.text += (ev.data.t || '');
+          bubble.innerHTML = render(state.text);
+          scrollDown();
+        } else if (ev.event === 'citations') {
+          state.citations = ev.data.citations || [];
+        } else if (ev.event === 'done') {
+          state.done = ev.data;
+        } else if (ev.event === 'error') {
+          throw new Error(ev.data.error || 'stream failed');
+        }
+      }
+    }
+
+    bubble.innerHTML = render(state.text || 'No answer.') +
+      renderCitations(state.citations) +
+      renderFeedback(state.done && state.done.message_id);
+    scrollDown();
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      bubble.innerHTML = render(state.text || '_Stopped._');
+    } else {
+      bubble.innerHTML = '<p class="err">' + esc(err.message || 'Request failed') + '</p>' +
+        '<button type="button" class="retry">Retry</button>';
+    }
+  } finally {
+    controller = null;
+    stopBtn.classList.add('hidden');
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const value = input.value;
+  input.value = '';
+  ask(value);
+});
+
+stopBtn.addEventListener('click', () => {
+  if (controller) controller.abort();
+});
+
+messagesEl.addEventListener('click', async (e) => {
+  const chip = e.target.closest('.chip');
+  if (chip) { ask(chip.textContent); return; }
+
+  const retry = e.target.closest('.retry');
+  if (retry) { ask(lastQuestion); return; }
+
+  const vote = e.target.closest('.feedback button');
+  if (vote) {
+    const box = vote.closest('.feedback');
+    const messageId = box.getAttribute('data-message-id');
+    const verdict = Number(vote.getAttribute('data-v'));
+    try {
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: messageId, verdict: verdict })
+      });
+      box.querySelector('.fb-note').textContent = 'Thanks — noted.';
+      box.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    } catch (err) {
+      box.querySelector('.fb-note').textContent = 'Could not save.';
+    }
+  }
+});
 </script>
 {% endblock %}
