@@ -2,6 +2,8 @@
 name = "bloo_api"
 version = "0.1.0"
 edition = "2024"
+# Two binaries live here (api + worker); `cargo run` defaults to the API.
+default-run = "bloo_api"
 
 [dependencies]
 anyhow.workspace = true

@@ -202,4 +202,4 @@ Write-Host "  admin  http://127.0.0.1:27810/admin" -ForegroundColor DarkGray
 Write-Host "  stop   Ctrl+C (Postgres keeps running; scripts\stop.ps1 to stop it)`n" -ForegroundColor DarkGray
 
 $ErrorActionPreference = 'Continue'
-& cargo run --quiet -p bloo_api
+& cargo run --quiet -p bloo_api --bin bloo_api
