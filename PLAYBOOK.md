@@ -377,6 +377,19 @@ Verify before blaming the code:
 scripts\check-llm.ps1
 ```
 
+**Measured latency on this laptop** (4-chunk prompt, ~2 k tokens):
+
+| Model | Median time to first token |
+|---|---|
+| `glm-5.3-flash` | **2.6 s** |
+| `deepseek-v4.1-flash` | 3.2 s |
+| `minimax-m3.1-flash` | 1.9 s, but a 22 s outlier |
+| `mimo-v2.6-flash` | 1.6 s direct, 4.7 s / 15 s through the gateway |
+
+The WP-04 target of < 1.5 s is **not reachable through this gateway** at a realistic context
+size; the pipeline itself contributes ~0.2 s. Reducing `CONTEXT_CHUNKS` from 6 to 4 bought
+~0.4 s with no quality loss (smoke still 22/22).
+
 It normalises the URL, sends a 64-token request, and explains `401` (bad key), `402` (wrong
 base path for Go, or exhausted allowance), `403` (model not allowed), `404` (wrong base) and
 `429` (allowance/rate limit).
