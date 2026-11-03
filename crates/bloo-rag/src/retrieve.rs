@@ -1,4 +1,4 @@
-//! End-to-end answering: route → embed → hybrid retrieve → prompt → generate → cite.
+//! End-to-end answering: route â†’ embed â†’ hybrid retrieve â†’ prompt â†’ generate â†’ cite.
 
 use crate::llm::LlmClient;
 use crate::prompt::{self, REFUSAL};
@@ -11,7 +11,7 @@ use std::time::Instant;
 
 /// Minimum dense cosine similarity for an answer. Below this we refuse rather than hallucinate.
 const MIN_SIMILARITY: f32 = 0.40;
-const CONTEXT_CHUNKS: usize = 6;
+const CONTEXT_CHUNKS: usize = 4;
 const MAX_CITATIONS: usize = 4;
 
 #[derive(Debug, Clone)]
@@ -60,8 +60,16 @@ pub async fn prepare(
         });
     }
 
-    // 1. Optional routing. A failure here must not break answering.
-    let route = thx.route(question).await;
+    // 1. Routing and retrieval are independent: run them concurrently so routing does not
+    //    sit on the critical path. A routing failure must not break answering.
+    let route_fut = thx.route(question);
+    let retrieve_fut = async {
+        let embedding = embedder.embed_query(question).await?;
+        hybrid_search(pool, question, &embedding, 40).await
+    };
+    let (route, hits) = tokio::join!(route_fut, retrieve_fut);
+    let hits = hits?;
+
     let route_name = route.as_ref().map(|r| r.route.clone());
     let topic = route.as_ref().and_then(|r| r.topic.clone());
 
@@ -82,11 +90,7 @@ pub async fn prepare(
         }
     }
 
-    // 2. Embed the query.
-    let embedding = embedder.embed_query(question).await?;
-
-    // 3. Hybrid retrieval (published chunks only).
-    let hits = hybrid_search(pool, question, &embedding, 40).await?;
+    // 2. Hybrid retrieval (published chunks only).
     let best_similarity = hits.iter().map(|h| h.similarity).fold(0.0f32, f32::max);
     let fused_nonempty = !hits.is_empty();
     let chunks: Vec<RetrievedChunk> = hits.into_iter().take(CONTEXT_CHUNKS).collect();
