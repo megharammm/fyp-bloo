@@ -336,10 +336,26 @@ and never produces citations — those come from THX-01 offsets.
 
 | Provider | `LLM_BASE_URL` | Model example |
 |---|---|---|
-| OpenCode Console | `https://opencode.ai/inference/openai/v1` | `deepseek-v4.1-flash` |
+| OpenCode **Go** subscription | `https://opencode.ai/inference/go/openai/v1` | `deepseek-v4.1-flash` |
+| OpenCode **Console** pay-as-you-go | `https://opencode.ai/inference/openai/v1` | `deepseek-v4.1-flash` |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
 | Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
 | Local Ollama | `http://127.0.0.1:11434/v1` | `qwen2.5:7b` |
+
+> **Go and Console are different base paths.** A Go key sent to the Console path
+> authenticates and then returns `402` (no pay-as-you-go balance), which looks like a broken
+> key. It isn't. Use `/inference/go/openai/v1` for a Go subscription.
+
+**Go also requires two headers** (WP-03 must send them):
+
+```http
+User-Agent: BlooAI/0.1
+x-opencode-session: <stable id per conversation>
+```
+
+`x-opencode-session` lets them route and cache per conversation; reuse the `conversations.id`
+from the schema. `scripts\check-llm.ps1` already sends both, which is why it can tell a bad
+key from a wrong base path.
 
 Verify before blaming the code:
 
@@ -347,11 +363,9 @@ Verify before blaming the code:
 scripts\check-llm.ps1
 ```
 
-It normalises the URL, sends a one-token request, and explains `401` (bad key), `402` (no
-credits), `403` (model not allowed for the key), `404` (wrong base) and `429`.
-
-> OpenCode **Go subscription** keys are not API keys. Console API keys are created at
-> `https://opencode.ai/console` and are the only ones that work against the inference API.
+It normalises the URL, sends a 64-token request, and explains `401` (bad key), `402` (wrong
+base path for Go, or exhausted allowance), `403` (model not allowed), `404` (wrong base) and
+`429` (allowance/rate limit).
 
 ### 8.3 Embeddings — local, no API
 
@@ -1030,7 +1044,8 @@ Implementation notes:
 | `port 27432 already in use` | foreign process | `scripts/check-ports.ps1`; find the owner; **do not** change Bloo's port |
 | `docker: … dockerDesktopLinuxEngine` | Docker Desktop stopped | start it, then rerun |
 | `NativeCommandError` after `Compiling bloo_api` | PowerShell 5.1 turns a native command's stderr into a terminating error when `2>&1` is used under `ErrorActionPreference=Stop` | fixed in the scripts — never redirect cargo; check `$LASTEXITCODE` instead |
-| LLM `401` | key rejected — Go subscription keys are not API keys | create a Console key at `opencode.ai/console`; run `scripts\check-llm.ps1` |
+| LLM `401` | key rejected or missing | create/copy a key at `opencode.ai/console`; run `scripts\check-llm.ps1` |
+| LLM `402` | Go key on the Console base path, or allowance exhausted | Go base is `https://opencode.ai/inference/go/openai/v1` |
 | LLM `404` | `LLM_BASE_URL` includes `/chat/completions` or the wrong path | base only: `https://host/v1`; the normaliser fixes trailing `/chat/completions` |
 | Docker Desktop returns 500 on `docker ps` | 322M model loading inside the WSL2 VM | do not run THX-01 in Docker on a laptop; use `scripts\start-thx01.ps1` |
 | `HALX_API_KEY is not set` | missing `.env` | copy `.env.example`, add keys |
