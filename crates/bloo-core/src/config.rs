@@ -31,6 +31,9 @@ pub struct Config {
     pub embed_api_key: Option<String>,
     /// `auto` (default) | `thx` | `local` | `off`. See PLAYBOOK.md 8.1.
     pub decider: String,
+    /// Use THX-01 to cut citation spans at query time. Costs ~2-3 s per answer on CPU;
+    /// default off, citations fall back to a query-relevant sentence (still verbatim).
+    pub thx_citations: bool,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -67,6 +70,7 @@ impl Config {
             embed_base_url: env_or("BLOO_EMBED_BASE_URL", "https://api.jina.ai/v1"),
             embed_api_key: std::env::var("BLOO_EMBED_API_KEY").ok(),
             decider: env_or("BLOO_DECIDER", "auto"),
+            thx_citations: env_or("BLOO_THX_CITATIONS", "0") == "1",
         })
     }
 
