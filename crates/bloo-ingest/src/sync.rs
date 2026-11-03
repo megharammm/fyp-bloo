@@ -223,7 +223,7 @@ pub async fn sync_content(pool: &PgPool, cfg: &Config) -> Result<SyncReport> {
     }
 
     // Anything that disappeared from disk is archived, never hard-deleted.
-    for (path, _) in live.iter() {
+    for path in live.keys() {
         if !seen.contains(path) {
             sqlx::query(
                 "update documents set status = 'archived', updated_at = now()
