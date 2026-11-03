@@ -2,3 +2,7 @@
 *.pdf  filter=lfs diff=lfs merge=lfs -text
 *.docx filter=lfs diff=lfs merge=lfs -text
 *.xlsx filter=lfs diff=lfs merge=lfs -text
+
+# sqlx hashes migration files byte for byte. CRLF checkouts make an applied
+# migration look "modified" and block startup, so pin these to LF.
+*.sql text eol=lf

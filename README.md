@@ -70,6 +70,7 @@ Team workflow — branches, reviews, agent rules: **[docs/CONTRIBUTING.md](docs/
 | `scripts\smoke-wp05.ps1` | Admin console: sync, filters, chunks, publish, re-ingest, delete guard |
 | `scripts\test-thx01.ps1` | Send a real Bloo-shaped request to the self-hosted THX-01 sidecar |
 | `scripts\start-thx01.ps1` | Run THX-01 as a host process (recommended; avoids Docker/WSL memory) |
+| `scripts\reset-db.ps1` | Wipe local data and re-run migrations (fixes a checksum mismatch) |
 | `make check` | fmt + clippy + test + check |
 
 ---
