@@ -33,6 +33,7 @@ All three must be green before and after your change.
 
 | Question | File |
 |---|---|
+| Where did we leave off? | `docs/HANDOFF.md` |
 | What am I supposed to build? | `PLAYBOOK.md` → Work packages |
 | How does the pipeline work? | `PLAYBOOK.md` → Architecture |
 | How do I call THX-01? | `PLAYBOOK.md` → Appendix A |
