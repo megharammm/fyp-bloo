@@ -7,6 +7,8 @@ pub mod chunk;
 pub mod pipeline;
 pub mod queue;
 pub mod storage;
+pub mod sync;
 
 pub use chunk::{chunk_blocks, Chunk, ChunkOptions};
 pub use storage::Storage;
+pub use sync::SyncReport;

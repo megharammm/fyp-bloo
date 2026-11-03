@@ -16,33 +16,14 @@ pub async fn index(State(_state): State<AppState>) -> impl IntoResponse {
     })
 }
 
-/// Content sync: scan `content/` + `data/uploads`, hash each file, enqueue only
-/// new or changed documents. Implemented in P1/P5 — see PLAYBOOK.md.
+/// `POST /api/admin/sync` — diff `content/` against the database and ingest what changed.
 pub async fn sync(State(state): State<AppState>) -> impl IntoResponse {
-    let _ = &state.content_dir_placeholder();
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({
-            "ok": false,
-            "todo": "P1: implement content sync (scan + sha256 + enqueue changed)",
-        })),
-    )
-}
-
-impl AppState {
-    fn content_dir_placeholder(&self) -> String {
-        self.cfg.content_dir.display().to_string()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn admin_template_renders() {
-        let html = AdminTemplate { version: "0.1.0" }.render().expect("render");
-        assert!(html.contains("Knowledge console"));
-        assert!(html.contains("27432"));
+    match bloo_ingest::sync::sync_content(&state.pool, &state.cfg).await {
+        Ok(report) => (StatusCode::OK, Json(report)).into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": err.to_string() })),
+        )
+            .into_response(),
     }
 }

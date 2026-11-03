@@ -4,56 +4,147 @@
 
 {% block content %}
 <section class="hero tight">
-  <h1>Knowledge console</h1>
-  <p class="sub">Upload, inspect, publish. Nothing is answerable until it is published.</p>
+  <div class="row-between">
+    <div>
+      <h1>Knowledge console</h1>
+      <p class="sub">Upload, inspect, publish. Nothing is answerable until it is published.</p>
+    </div>
+    <button class="ghost" id="refresh">Refresh</button>
+  </div>
 </section>
 
-<div class="grid">
+<section class="stats" aria-label="Knowledge base statistics">
+  <div class="stat"><span id="stat-documents">–</span><small>documents</small></div>
+  <div class="stat"><span id="stat-published">–</span><small>published</small></div>
+  <div class="stat"><span id="stat-chunks">–</span><small>chunks</small></div>
+  <div class="stat"><span id="stat-today">–</span><small>answers today</small></div>
+  <div class="stat"><span id="stat-failed">–</span><small>failed</small></div>
+</section>
+
+<div class="admin-grid">
   <div class="panel">
-    <h2>1 · Add knowledge</h2>
-    <p class="muted">PDF, DOCX, HTML, Markdown. Files are hashed and de-duplicated.</p>
-    <div class="drop" id="drop">
+    <h2>Add knowledge</h2>
+    <p class="muted">PDF, DOCX, HTML, Markdown, TXT. Files are hashed and de-duplicated.</p>
+
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload documents">
       <strong>Drop files here</strong>
       <span class="muted">or click to browse</span>
       <input type="file" id="file" multiple hidden />
     </div>
-    <button class="ghost" id="syncBtn">Sync content folder</button>
-    <pre class="out" id="out">idle</pre>
+
+    <div id="uploads" class="uploads"></div>
+
+    <div class="sync-row">
+      <button class="ghost" id="syncBtn">Sync content folder</button>
+      <span class="muted small" id="syncHint">scans content/ and ingests what changed</span>
+    </div>
+    <pre class="out hidden" id="syncOut"></pre>
   </div>
 
-  <div class="panel">
-    <h2>2 · Inspect</h2>
-    <p class="muted">Chunk inspector, page map and table preview land in P1/P3.</p>
-    <ul class="list">
-      <li><span class="tag todo">todo</span> document table</li>
-      <li><span class="tag todo">todo</span> chunk inspector</li>
-      <li><span class="tag todo">todo</span> publish / archive</li>
-    </ul>
-  </div>
+  <div class="panel" id="detail" hidden>
+    <div class="row-between">
+      <h2 id="d-title">Document</h2>
+      <span class="badge" id="d-status">–</span>
+    </div>
+    <p class="muted small" id="d-meta"></p>
 
-  <div class="panel">
-    <h2>3 · Health</h2>
-    <p class="muted">Live checks used by the demo and by `upgrade.ps1`.</p>
-    <pre class="out" id="health">checking…</pre>
-    <ul class="list">
-      <li><span class="tag ok">ok</span> Postgres on <code>27432</code></li>
-      <li><span class="tag ok">ok</span> API on <code>27810</code></li>
-      <li><span class="tag todo">todo</span> THX-01 key</li>
-    </ul>
+    <form id="meta-form" class="meta-form">
+      <label class="lbl" for="m-title">Title</label>
+      <input class="input" id="m-title" name="title" />
+
+      <label class="lbl" for="m-category">Category</label>
+      <input class="input" id="m-category" name="category" />
+
+      <div class="two">
+        <div>
+          <label class="lbl" for="m-valid">Valid until</label>
+          <input class="input" id="m-valid" name="valid_until" type="date" />
+        </div>
+        <div>
+          <label class="lbl" for="m-verified">Last verified</label>
+          <input class="input" id="m-verified" name="last_verified_at" type="date" />
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit">Save metadata</button>
+        <button type="button" class="ghost" id="btn-publish">Publish</button>
+        <button type="button" class="ghost" id="btn-unpublish">Unpublish</button>
+        <button type="button" class="ghost" id="btn-reingest">Re-ingest</button>
+        <button type="button" class="ghost" id="btn-archive">Archive</button>
+        <button type="button" class="ghost danger" id="btn-delete">Delete</button>
+      </div>
+      <p class="muted small" id="action-note"></p>
+    </form>
+
+    <h3 class="subhead">Jobs</h3>
+    <ul class="jobs small" id="d-jobs"></ul>
   </div>
 </div>
 
-<script>
-  const out = document.getElementById('out');
-  document.getElementById('syncBtn').addEventListener('click', async () => {
-    out.textContent = 'syncing…';
-    try {
-      const r = await fetch('/api/admin/sync', { method: 'POST' });
-      out.textContent = JSON.stringify(await r.json(), null, 2);
-    } catch (e) { out.textContent = String(e); }
-  });
-  fetch('/health').then(r => r.json()).then(j => {
-    document.getElementById('health').textContent = JSON.stringify(j, null, 2);
-  }).catch(() => { document.getElementById('health').textContent = 'unreachable'; });
-</script>
+<div class="panel">
+  <div class="row-between">
+    <h2>Documents</h2>
+    <span class="muted small" id="total">–</span>
+  </div>
+
+  <div class="filters">
+    <input class="input" id="q" placeholder="Search title…" autocomplete="off" />
+    <select class="input" id="f-status">
+      <option value="">All statuses</option>
+      <option value="processing">processing</option>
+      <option value="ready">ready</option>
+      <option value="published">published</option>
+      <option value="failed">failed</option>
+      <option value="archived">archived</option>
+    </select>
+    <select class="input" id="f-category">
+      <option value="">All categories</option>
+      <option value="general">general</option>
+      <option value="fees">fees</option>
+      <option value="hostel">hostel</option>
+      <option value="exams">exams</option>
+      <option value="academics">academics</option>
+      <option value="library">library</option>
+      <option value="transport">transport</option>
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <table class="docs">
+      <thead>
+        <tr>
+          <th>Title</th><th>Category</th><th>Status</th>
+          <th>Pages</th><th>Chunks</th><th>Updated</th>
+        </tr>
+      </thead>
+      <tbody id="docs">
+        <tr><td colspan="6" class="muted">loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="row-between">
+    <h2>Chunks</h2>
+    <span class="muted small" id="chunk-total">–</span>
+  </div>
+  <p class="muted small" id="chunk-hint">Select a document to inspect how it was split.</p>
+
+  <div class="chunk-grid">
+    <ol class="chunk-list" id="chunk-list"></ol>
+    <div class="chunk-view" id="chunk-view">
+      <p class="muted">No chunk selected.</p>
+    </div>
+  </div>
+
+  <div class="pager">
+    <button class="ghost" id="chunk-prev" type="button">‹ Prev</button>
+    <span class="muted small" id="chunk-page">–</span>
+    <button class="ghost" id="chunk-next" type="button">Next ›</button>
+  </div>
+</div>
+
+<script src="/static/admin.js"></script>
 {% endblock %}
