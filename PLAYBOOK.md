@@ -306,6 +306,16 @@ check whether the model is up and whether a question schema is any good, without
 **The 10 ms headline is one GPU.** On a laptop CPU each forward pass is 200–500 ms, and
 `number` / `excerpt` / `cite` are *extra* passes. That changes three decisions:
 
+**Measured on this laptop** (`doofz/THX-01`, fp32, CPU, 45-word document):
+
+| Request | Model time | Wall |
+|---|---|---|
+| 1 × `choice`, 4 options | **96 ms** | 230 ms |
+| `choice` + `number` + `cite` + `excerpt` | **4 990 ms** | 5.0 s |
+
+So routing is cheap enough for the query path (~230 ms). Extraction and citation cost ~2–3 s
+each — they belong at **ingest time**, or on the **top-1 chunk only** at query time.
+
 - **Rerank with the local cross-encoder**, not THX-01. 40 chunks in ~30 ms vs seconds.
   `ThxScoreReranker` is enabled only when a GPU is present.
 - **At most two THX-01 calls per query**: one `choice` route, one `excerpt`+`cite` for the
