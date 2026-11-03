@@ -93,6 +93,24 @@ async fn main() -> anyhow::Result<()> {
             "/api/thx01/decide",
             axum::routing::post(routes::thx01::decide),
         )
+        .route(
+            "/api/admin/documents",
+            axum::routing::get(routes::documents::list)
+                .post(routes::documents::upload)
+                .layer(axum::extract::DefaultBodyLimit::max(50 * 1024 * 1024)),
+        )
+        .route(
+            "/api/admin/documents/{id}",
+            axum::routing::delete(routes::documents::delete),
+        )
+        .route(
+            "/api/admin/documents/{id}/publish",
+            axum::routing::post(routes::documents::publish),
+        )
+        .route(
+            "/api/admin/jobs/{id}",
+            axum::routing::get(routes::documents::job),
+        )
         .route("/api/admin/sync", axum::routing::post(routes::admin::sync))
         .nest_service("/static", ServeDir::new("static"))
         .layer(TraceLayer::new_for_http())
