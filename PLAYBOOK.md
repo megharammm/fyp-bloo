@@ -53,8 +53,8 @@ These are not preferences. They shape every decision below.
 | PDF parsing | **`pdfium-render`** (PDFium C++ via FFI) | +40 MB while parsing |
 | DOCX / HTML / MD | `docx-rs`, `scraper`, `pulldown-cmark` | negligible |
 | Embeddings | **`fastembed`** (ONNX) · `BAAI/bge-small-en-v1.5` · 384 d | +130 MB while embedding |
-| Rerank | **THX-01 batch `score`** (default) · local cross-encoder optional | 0 / +250 MB |
-| Routing / extraction / citations | **HAL-X THX-01** | 0 |
+| Rerank | **`bge-reranker-base`** via fastembed (default on CPU) · THX-01 batch on GPU | +250 MB when active |
+| Routing / extraction / citations | **THX-01** (cloud gateway or self-hosted sidecar) | 0 cloud · +2 GB sidecar |
 | Queue | **Postgres `SKIP LOCKED`** | 0 |
 | Chat generation | OpenAI-compatible API (streamed) | 0 |
 | Eval | Rust CLI + THX-01 judge + optional LLM judge | 0 |
@@ -80,12 +80,12 @@ positions, font sizes and page numbers, which is enough to rebuild reading order
 levels and simple tables. Table fidelity will be lower than Docling — accept it, and keep
 `bloo-parse::Parser` trait-backed so an HTTP parser can be added later.
 
-**(c) Local cross-encoder → THX-01 as reranker.**
-This is the interesting one. THX-01's `score` type returns an ordinal relevance score in
-~10 ms, and `/v1/systemone/batch` accepts 1 024 items in one call. So reranking 40 chunks
-costs **one HTTP call, ~50 ms, 0 MB of RAM**, versus a cross-encoder's 250 MB and ~1.2 s.
-It is unproven for this exact task — which is why `Reranker` is a trait and WP-07 decides
-with numbers. Default `ThxScoreReranker`; `CrossEncoderReranker` behind a feature flag.
+**(c) THX-01 as reranker → local cross-encoder.** *(corrected after testing the model)*
+The original plan was to batch-rerank 40 chunks with THX-01: one HTTP call, ~50 ms, zero RAM.
+That holds **on a GPU**. On a laptop CPU each forward pass is 200–500 ms, so a 40-chunk batch
+costs seconds — unusable. `bge-reranker-base` (ONNX) does the same 40 chunks in ~30 ms.
+So the default is the cross-encoder; `ThxScoreReranker` is enabled only when a GPU is present.
+`Reranker` stays a trait and WP-07 measures both. This is exactly why the trait exists.
 
 ---
 
@@ -165,8 +165,12 @@ question (+ last 3 turns)
  p95 ≈ 1.6 s after first token; ≈ 2.4 s total
 ```
 
-Steps 1, 4, 5, 7 are all one HTTP call each and can run in parallel where independent.
+Steps 1, 4, 5, 7 are one HTTP call each and run in parallel where independent.
 **THX-01 replaces four LLM calls** — that is why this is fast and cheap.
+
+> **These budgets assume a GPU.** With the self-hosted sidecar on a laptop CPU, step 4 is
+> replaced by the local cross-encoder (~30 ms) and steps 1 + 5 cost ~700 ms together. §8.1
+> has the full picture; WP-07 measures both.
 
 ---
 
@@ -217,7 +221,8 @@ Key invariants:
 |---|---|---|
 | Postgres host port | **27432** | 5432, 5433 |
 | App host port | **27810** | 3000, 5173, 8000, 8080 |
-| Reserved (unused) | 27811–27819 | — |
+| THX-01 sidecar (optional) | **27812** | 8095 exposed on the host |
+| Reserved (unused) | 27811, 27813–27819 | — |
 | Compose project | **`blooai`** | default (directory name) |
 | Containers | `blooai-db`, `blooai-app` | anything unprefixed |
 | Volume | `blooai_pgdata` | — |
@@ -269,26 +274,42 @@ this; we honour it).
 
 Exact payloads: **Appendix A**.
 
-#### If you cannot get a key
+#### Cloud gateway vs self-hosted
 
-The docs say "create an API key in the HAL-X console", but **no console is publicly linked**
-and `GET /v1/models` returns `401` without one. Keys are issued by the HAL-X team on request.
-Ask for the **THX-01 decisions grant** (`/v1/systemone`) with **model `thx-01` allowed** — a
-key without the grant returns `403`.
+THX-01 is **open source** — Apache 2.0, 322M parameters, weights on Hugging Face
+(`doofz/THX-01`), published on PyPI as `thx01` with a REST server that speaks the same
+`/v1/systemone` shape. So you have two paths, and **zero code difference** between them:
 
-Verify any key in five seconds:
+| | Cloud gateway | Self-hosted sidecar |
+|---|---|---|
+| Setup | key issued by the HAL-X team; no public signup | `docker compose -p blooai --profile thx01 up -d thx01` |
+| Base URL | `https://api.hal-x.ai` | `http://127.0.0.1:27812` |
+| Cost | their pricing | free (Apache 2.0) |
+| Offline demo | no | yes |
+| Extra RAM | 0 | ~2 GB |
+| Latency | ~10 ms/call | ~250–400 ms/call on CPU |
 
-```powershell
-scripts\check-halx.ps1
-```
+Point `HALX_BASE_URL` at either. Verify with `scripts\check-halx.ps1` (cloud) or
+`scripts\test-thx01.ps1` (local). Build details: `tools/thx01-local/README.md`.
 
-**Do not block WP-03 on this.** Every THX-01 call sits behind `trait Decider`, selected by
+**The 10 ms headline is one GPU.** On a laptop CPU each forward pass is 200–500 ms, and
+`number` / `excerpt` / `cite` are *extra* passes. That changes three decisions:
+
+- **Rerank with the local cross-encoder**, not THX-01. 40 chunks in ~30 ms vs seconds.
+  `ThxScoreReranker` is enabled only when a GPU is present.
+- **At most two THX-01 calls per query**: one `choice` route, one `excerpt`+`cite` for the
+  citation span. Budget ~700 ms, not ~150 ms.
+- **Spend THX-01 offline instead.** At ingest, latency is irrelevant: tag every document
+  (`category`, `doc_type`), extract stated numbers and dates, pre-draft FAQ candidates.
+  Batch mode makes a 10k-chunk corpus a coffee break.
+
+**Do not block WP-03 on the key.** Every call sits behind `trait Decider`, selected by
 `BLOO_DECIDER=thx|local|off` (default: `thx` when a key is present, `local` otherwise):
 
 | Capability | `thx` | `local` fallback |
 |---|---|---|
 | route / topic | `choice` | keyword rules over `documents.category`; no filter if unsure |
-| rerank | batch `score` | RRF order, or `CrossEncoderReranker` behind `--features local-rerank` |
+| rerank | `score` (GPU only) | `bge-reranker-base` cross-encoder, else RRF order |
 | citation span | `excerpt` + `cite` | split chunk into sentences, pick max token-overlap sentence — still a **verbatim substring** |
 | grounding | `noul` | every number/date in the answer must appear in the context (regex), plus `cosine(answer, context) ≥ 0.72` |
 | injection screen | `noul` | disabled (offline demo only) |

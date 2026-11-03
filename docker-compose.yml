@@ -60,9 +60,34 @@ services:
       db:
         condition: service_healthy
 
+  # Self-hosted THX-01 decision model (optional). Apache-2.0 weights, CPU inference.
+  # Start with: docker compose -p blooai -f docker-compose.yml --profile thx01 up -d thx01
+  # Then set HALX_BASE_URL=http://127.0.0.1:27812 in .env
+  thx01:
+    profiles: ["thx01"]
+    build:
+      context: ./tools/thx01-local
+      dockerfile: Dockerfile
+    container_name: blooai-thx01
+    restart: unless-stopped
+    ports:
+      - "27812:8095"
+    environment:
+      THX01_MODEL: doofz/THX-01
+      THX01_DEVICE: cpu
+      THX01_API_KEY: ${THX01_API_KEY:-bloo-local}
+      HF_HOME: /models
+      # Uncomment for a fully offline demo once the weights are cached:
+      # HF_HUB_OFFLINE: "1"
+      # TRANSFORMERS_OFFLINE: "1"
+    volumes:
+      - thx01models:/models
+
 volumes:
   pgdata:
     name: blooai_pgdata
+  thx01models:
+    name: blooai_thx01models
 
 networks:
   default:

@@ -59,6 +59,7 @@ Team workflow — branches, reviews, agent rules: **[docs/CONTRIBUTING.md](docs/
 | `scripts\check-ports.ps1` | Refuse to start if 27432/27810 belong to another project |
 | `scripts\protect-main.ps1` | Apply branch protection to `main` (needs `gh auth login`, once) |
 | `scripts\check-halx.ps1` | Verify the HAL-X key against `/v1/models`; explains 401 vs 403 |
+| `scripts\test-thx01.ps1` | Send a real Bloo-shaped request to the self-hosted THX-01 sidecar |
 | `make check` | fmt + clippy + test + check |
 
 ---
@@ -87,6 +88,7 @@ Full rules: **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)**.
 |---|---|
 | Postgres (`blooai-db`) | **27432** |
 | App (`blooai-app`) | **27810** |
+| THX-01 sidecar (`blooai-thx01`), optional | **27812** |
 
 Compose project is pinned to `blooai`. Never run `docker compose` without `-p blooai`,
 and never run `docker system prune` — `D:\Trivya-Data-Pipeline` shares this machine.
