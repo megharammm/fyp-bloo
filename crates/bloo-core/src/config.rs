@@ -24,6 +24,11 @@ pub struct Config {
     /// Number of dimensions the embedding model produces. Must match the
     /// `vector(N)` column in `migrations/0001_init.sql`.
     pub embed_dim: usize,
+    /// `local` (default) | `openai` | `mock`. See `bloo_rag::embed`.
+    pub embed_provider: String,
+    /// Base URL for the dormant OpenAI-compatible backend.
+    pub embed_base_url: String,
+    pub embed_api_key: Option<String>,
     /// `auto` (default) | `thx` | `local` | `off`. See PLAYBOOK.md 8.1.
     pub decider: String,
 }
@@ -58,6 +63,9 @@ impl Config {
             llm_model: env_or("LLM_MODEL", "gpt-4o-mini"),
             embed_model: env_or("BLOO_EMBED_MODEL", "BAAI/bge-small-en-v1.5"),
             embed_dim,
+            embed_provider: env_or("BLOO_EMBED_PROVIDER", "local"),
+            embed_base_url: env_or("BLOO_EMBED_BASE_URL", "https://api.jina.ai/v1"),
+            embed_api_key: std::env::var("BLOO_EMBED_API_KEY").ok(),
             decider: env_or("BLOO_DECIDER", "auto"),
         })
     }

@@ -380,6 +380,33 @@ image or ship it in git LFS** so the demo works offline.
 Why not an embeddings API? No key, no per-query cost, no network dependency during a viva,
 and 384 d keeps the index tiny (~220 MB for 150 k chunks).
 
+**Decision (locked):** embeddings stay local. The remote backend exists in
+`bloo_rag::embed::OpenAiCompatEmbedder` (Jina / Mistral / OpenAI) but is **dormant** — it is
+only constructed when `BLOO_EMBED_PROVIDER=openai`. The contract is `Embedder`:
+
+```rust
+trait Embedder {
+    fn dim(&self) -> usize;
+    fn name(&self) -> &'static str;
+    async fn embed_documents(&self, texts: &[String]) -> Result<Vec<Embedding>>;
+    async fn embed_query(&self, text: &str) -> Result<Embedding>;
+}
+```
+
+| Provider | Dims | RAM | Notes |
+|---|---|---|---|
+| `local` (default) | 384 | ~130 MB | ONNX, offline, implemented in WP-02 |
+| `openai` (dormant) | provider's | 0 | Jina 1M tokens/mo, Gemini, Mistral… |
+| `mock` | 384 | 0 | deterministic, for tests and plumbing |
+
+Switching to `openai` changes the dimension, which is a `vector(N)` migration **plus a full
+re-index**. `parse_embeddings` refuses a mismatched response and names the migration, so the
+index cannot be silently corrupted. Today the corpus is empty — that is the only free moment
+to change your mind; afterwards it is a re-index job.
+
+The reason local wins is arithmetic: the embedder is ~130 MB, THX-01 is ~2 GB. If RAM is the
+constraint, the lever is the decision model, not the embeddings.
+
 ---
 
 ## 9. Repository layout
