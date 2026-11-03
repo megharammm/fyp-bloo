@@ -175,8 +175,14 @@ Head '6/6  Building and launching'
 if ($SkipBuild) {
     Warn 'skipping build (-SkipBuild)'
 } else {
-    cargo build -p bloo_api
-    if ($LASTEXITCODE -ne 0) { Die 'cargo build failed' }
+    Write-Host '  building...' -ForegroundColor DarkGray
+    # See scripts/start.ps1: never redirect cargo's stderr under ErrorActionPreference=Stop.
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & cargo build -p bloo_api --quiet
+    $buildCode = $LASTEXITCODE
+    $ErrorActionPreference = $prevEap
+    if ($buildCode -ne 0) { Die 'cargo build failed' }
     Ok 'binary built'
 }
 
@@ -195,4 +201,5 @@ Write-Host "  chat   http://127.0.0.1:27810/"      -ForegroundColor DarkGray
 Write-Host "  admin  http://127.0.0.1:27810/admin" -ForegroundColor DarkGray
 Write-Host "  stop   Ctrl+C (Postgres keeps running; scripts\stop.ps1 to stop it)`n" -ForegroundColor DarkGray
 
-cargo run -p bloo_api
+$ErrorActionPreference = 'Continue'
+& cargo run --quiet -p bloo_api

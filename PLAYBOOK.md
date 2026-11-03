@@ -1007,6 +1007,8 @@ Implementation notes:
 | `cannot reach Postgres` | Docker Desktop not running, or db not up | start Docker Desktop; `docker compose -p blooai up -d db` |
 | `port 27432 already in use` | foreign process | `scripts/check-ports.ps1`; find the owner; **do not** change Bloo's port |
 | `docker: … dockerDesktopLinuxEngine` | Docker Desktop stopped | start it, then rerun |
+| `NativeCommandError` after `Compiling bloo_api` | PowerShell 5.1 turns a native command's stderr into a terminating error when `2>&1` is used under `ErrorActionPreference=Stop` | fixed in the scripts — never redirect cargo; check `$LASTEXITCODE` instead |
+| Docker Desktop returns 500 on `docker ps` | 322M model loading inside the WSL2 VM | do not run THX-01 in Docker on a laptop; use `scripts\start-thx01.ps1` |
 | `HALX_API_KEY is not set` | missing `.env` | copy `.env.example`, add keys |
 | Empty answers | nothing published | `/admin` → publish a document |
 | Bad answers after upload | parse/chunk quality | open the chunk inspector; re-upload a text-based PDF |

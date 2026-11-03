@@ -29,4 +29,5 @@ if ($s -ne 'healthy') { throw 'Postgres did not start. Run: docker logs blooai-d
 
 Write-Host "`npostgres ready on 27432" -ForegroundColor Green
 Write-Host 'running API on http://127.0.0.1:27810' -ForegroundColor Green
-cargo run -p bloo_api
+$ErrorActionPreference = 'Continue'
+& cargo run --quiet -p bloo_api
