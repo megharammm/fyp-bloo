@@ -381,8 +381,8 @@ scripts\check-llm.ps1
 
 | Model | Median time to first token |
 |---|---|
-| `glm-5.3-flash` | **2.6 s** |
-| `deepseek-v4.1-flash` | 3.2 s |
+| `deepseek-v4.1-flash` | 3.2 s (**chosen default**) |
+| `glm-5.3-flash` | **2.6 s** (faster and cheaper; swap if latency matters) |
 | `minimax-m3.1-flash` | 1.9 s, but a 22 s outlier |
 | `mimo-v2.6-flash` | 1.6 s direct, 4.7 s / 15 s through the gateway |
 
