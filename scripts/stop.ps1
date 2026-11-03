@@ -1,4 +1,4 @@
-# Bloo AI — stop everything Bloo owns. Never touches other projects.
+# Bloo AI - stop everything Bloo owns. Never touches other projects.
 # Data is preserved: the Postgres volume `blooai_pgdata` is not removed.
 
 [CmdletBinding()]

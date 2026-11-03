@@ -1,4 +1,4 @@
-# Bloo AI — start the server. Everything else is already provisioned.
+# Bloo AI - start the server. Everything else is already provisioned.
 #
 #   scripts\start.ps1            start (pulls nothing, keeps your local state)
 #   scripts\start.ps1 -Pull      git pull --ff-only first
@@ -15,22 +15,29 @@ $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
 
 if (-not (Test-Path '.env')) {
-    Write-Host 'First run detected. Running setup instead…' -ForegroundColor Yellow
+    Write-Host 'First run detected. Running setup instead...' -ForegroundColor Yellow
     & (Join-Path $PSScriptRoot 'setup.ps1')
     exit $LASTEXITCODE
 }
 
+if (-not (Select-String -Path '.env' -Pattern '^\s*HALX_API_KEY\s*=\s*\S' -Quiet)) {
+    Write-Host '  note: HALX_API_KEY is empty - run scripts\setup.ps1 to add it' -ForegroundColor Yellow
+}
+if (-not (Select-String -Path '.env' -Pattern '^\s*LLM_API_KEY\s*=\s*\S' -Quiet)) {
+    Write-Host '  note: LLM_API_KEY is empty - chat answers will be unavailable' -ForegroundColor Yellow
+}
+
 if ($Pull) {
-    Write-Host 'pulling…' -ForegroundColor DarkGray
+    Write-Host 'pulling...' -ForegroundColor DarkGray
     git pull --ff-only
-    if ($LASTEXITCODE -ne 0) { throw 'git pull failed — resolve the branch state first.' }
+    if ($LASTEXITCODE -ne 0) { throw 'git pull failed - resolve the branch state first.' }
 }
 
 # Docker must be awake; start it if it is installed but asleep.
 try { docker info 2>$null | Out-Null } catch {
     $desktop = Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'
     if (Test-Path $desktop) {
-        Write-Host 'starting Docker Desktop…' -ForegroundColor DarkGray
+        Write-Host 'starting Docker Desktop...' -ForegroundColor DarkGray
         Start-Process $desktop | Out-Null
         $deadline = (Get-Date).AddSeconds(180)
         $up = $false

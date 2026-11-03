@@ -1,4 +1,4 @@
-# Bloo AI — content sync helper (calls the running app).
+# Bloo AI - content sync helper (calls the running app).
 # Re-scans content/ and data/uploads; only new or changed files are re-ingested.
 
 [CmdletBinding()]

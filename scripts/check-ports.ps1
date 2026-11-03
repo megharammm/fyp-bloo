@@ -1,4 +1,4 @@
-# Bloo AI — port isolation guard.
+# Bloo AI - port isolation guard.
 # Fails if 27432 or 27810 is taken by something that is not ours.
 # This is the wall between Bloo and every other local project.
 
@@ -16,26 +16,31 @@ foreach ($port in $ports) {
         continue
     }
 
-    $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
-    $names = foreach ($p in $pids) {
+    # Which containers publish this port?
+    $containers = @()
+    try {
+        $containers = @(& docker ps --format '{{.Names}}' --filter "publish=$port" 2>$null)
+    } catch { $containers = @() }
+
+    $isBloo = $false
+    foreach ($c in $containers) { if ($c -like '*blooai*') { $isBloo = $true } }
+
+    if ($isBloo) {
+        Write-Host "  port $port held by Bloo ($($containers -join ', '))" -ForegroundColor DarkGray
+        continue
+    }
+
+    # Human-readable owner of the socket.
+    $names = foreach ($p in ($conns | Select-Object -ExpandProperty OwningProcess -Unique)) {
         $proc = Get-Process -Id $p -ErrorAction SilentlyContinue
         if ($proc) { "$($proc.ProcessName) (pid $p)" } else { "pid $p" }
     }
 
-    $ours = $conns | Where-Object { $_.OwningProcess -in $pids } | ForEach-Object {
-        (& docker inspect --format '{{.Name}}' (& docker ps -q --filter "publish=$port") 2>$null)
-    } | Where-Object { $_ -like '*blooai*' }
-
-    if ($ours) {
-        Write-Host "  port $port held by Bloo ($ours)" -ForegroundColor DarkGray
-        continue
-    }
-
-    $msg = "port $port is already in use by: $($names -join ', ')"
+    $msg = "port $port is in use by: $($names -join ', ')"
     if ($AllowBound) {
-        Write-Warning "$msg — continuing, but Bloo may fail to bind."
+        Write-Warning "$msg - continuing, but Bloo may fail to bind."
     } else {
-        throw "$msg. Bloo must stay on 27432/27810. Stop the other process or change nothing in Bloo."
+        throw "$msg. Bloo must stay on 27432/27810. Stop the other process; do not change Bloo."
     }
 }
 

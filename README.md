@@ -57,6 +57,7 @@ Team workflow — branches, reviews, agent rules: **[docs/CONTRIBUTING.md](docs/
 | `scripts\sync.ps1` | Re-scan `content/` + `data/uploads`, ingest only what changed |
 | `scripts\seed.ps1` | Load the demo corpus |
 | `scripts\check-ports.ps1` | Refuse to start if 27432/27810 belong to another project |
+| `scripts\protect-main.ps1` | Apply branch protection to `main` (needs `gh auth login`, once) |
 | `make check` | fmt + clippy + test + check |
 
 ---
