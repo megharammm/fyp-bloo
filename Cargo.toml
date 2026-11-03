@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/bloo-core", "crates/bloo-api", "crates/bloo-rag", "crates/bloo-parse"]
+members = ["crates/bloo-core", "crates/bloo-api", "crates/bloo-rag", "crates/bloo-parse", "crates/bloo-ingest"]
 
 [workspace.package]
 version = "0.1.0"

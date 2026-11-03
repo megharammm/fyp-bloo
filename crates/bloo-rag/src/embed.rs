@@ -9,7 +9,7 @@
 //! `BLOO_EMBED_DIM`, which is a schema migration (`vector(N)`) plus a re-index. That is cheap
 //! today (empty corpus) and expensive later, so the decision is recorded here.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use bloo_core::Config;
 use serde::{Deserialize, Serialize};
@@ -230,14 +230,78 @@ impl Embedder for OpenAiCompatEmbedder {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Local ONNX backend (default)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// `BAAI/bge-small-en-v1.5` through fastembed: ~35 MB on disk, ~130 MB RSS, CPU only.
+pub struct LocalEmbedder {
+    model: std::sync::Arc<std::sync::Mutex<fastembed::TextEmbedding>>,
+    dim: usize,
+}
+
+impl LocalEmbedder {
+    /// `cache_dir` is where the ONNX weights live (e.g. `data/models`), so they survive
+    /// `cargo clean` and can be baked into the demo image.
+    pub fn new(cache_dir: std::path::PathBuf) -> Result<Self> {
+        std::fs::create_dir_all(&cache_dir)
+            .with_context(|| format!("cannot create model cache {}", cache_dir.display()))?;
+
+        let options = fastembed::InitOptions::new(fastembed::EmbeddingModel::BGESmallENV15)
+            .with_cache_dir(cache_dir)
+            .with_show_download_progress(true);
+
+        let model = fastembed::TextEmbedding::try_new(options)
+            .context("cannot load bge-small-en-v1.5 (first run downloads ~35 MB)")?;
+
+        Ok(Self {
+            model: std::sync::Arc::new(std::sync::Mutex::new(model)),
+            dim: 384,
+        })
+    }
+}
+
+#[async_trait]
+impl Embedder for LocalEmbedder {
+    fn dim(&self) -> usize {
+        self.dim
+    }
+
+    fn name(&self) -> &'static str {
+        "local-onnx"
+    }
+
+    async fn embed_documents(&self, texts: &[String]) -> Result<Vec<Embedding>> {
+        let model = self.model.clone();
+        let batch = texts.to_vec();
+
+        let vectors = tokio::task::spawn_blocking(move || -> Result<Vec<Embedding>> {
+            let mut guard = model
+                .lock()
+                .map_err(|_| anyhow!("local embedder lock poisoned"))?;
+            let out = guard
+                .embed(batch, Some(64))
+                .map_err(|e| anyhow!("fastembed failed: {e}"))?;
+            Ok(out)
+        })
+        .await
+        .context("embedding task panicked")??;
+
+        if let Some(bad) = vectors.iter().find(|v| v.len() != self.dim) {
+            bail!(
+                "local embedder returned {} dimensions, expected {}",
+                bad.len(),
+                self.dim
+            );
+        }
+        Ok(vectors)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Factory
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Build the embedder selected by `BLOO_EMBED_PROVIDER` (`local` | `openai` | `mock`).
-///
-/// `local` is the default and is implemented in WP-02 with `fastembed` + ONNX. Until the
-/// ingestion crate lands there is nothing to embed, so this returns a clear error instead of
-/// silently producing meaningless vectors.
 pub fn build(cfg: &Config) -> Result<Arc<dyn Embedder>> {
     match cfg.embed_provider.as_str() {
         "mock" => Ok(Arc::new(MockEmbedder::new(cfg.embed_dim))),
@@ -257,11 +321,17 @@ pub fn build(cfg: &Config) -> Result<Arc<dyn Embedder>> {
                 cfg.embed_dim,
             )?))
         }
-        "local" | "" => bail!(
-            "local embeddings are implemented in WP-02 (ingestion) with fastembed + ONNX. \
-             Nothing calls the embedder yet. For tests use BLOO_EMBED_PROVIDER=mock; to try a \
-             remote model use BLOO_EMBED_PROVIDER=openai with BLOO_EMBED_API_KEY."
-        ),
+        "local" | "" => {
+            let embedder = LocalEmbedder::new(cfg.data_dir.join("models"))?;
+            if embedder.dim() != cfg.embed_dim {
+                bail!(
+                    "BLOO_EMBED_DIM={} but bge-small produces {} dims",
+                    cfg.embed_dim,
+                    embedder.dim()
+                );
+            }
+            Ok(Arc::new(embedder))
+        }
         other => {
             bail!("unknown BLOO_EMBED_PROVIDER {other:?}; expected `local`, `openai` or `mock`")
         }

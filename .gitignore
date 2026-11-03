@@ -13,3 +13,4 @@ data/pdfium/*
 Thumbs.db
 .vscode/
 .idea/
+data/smoke/

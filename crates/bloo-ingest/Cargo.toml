@@ -1,0 +1,20 @@
+[package]
+name = "bloo_ingest"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bloo_core = { version = "0.1.0", path = "../bloo-core" }
+bloo_parse = { version = "0.1.0", path = "../bloo-parse" }
+bloo_rag = { version = "0.1.0", path = "../bloo-rag" }
+hex = "0.4.3"
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10.9"
+sqlx = { version = "0.9.0", features = ["runtime-tokio", "postgres", "chrono", "uuid", "json", "migrate"] }
+tokio.workspace = true
+tracing.workspace = true
+uuid = { version = "1.20.0", features = ["v4", "serde"] }

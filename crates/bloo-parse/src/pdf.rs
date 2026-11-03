@@ -12,8 +12,9 @@ pub struct PdfParser;
 
 impl Parser for PdfParser {
     fn parse(&self, bytes: &[u8]) -> Result<ParsedDoc> {
-        let bindings = bind()?;
-        let pdfium = Pdfium::new(bindings);
+        // PDFium can only be initialised once per process; rebinding per document fails with
+        // PdfiumLibraryBindingsAlreadyInitialized. Cache the instance.
+        let pdfium = pdfium()?;
 
         let document = pdfium
             .load_pdf_from_byte_slice(bytes, None)
@@ -103,6 +104,20 @@ impl Parser for PdfParser {
             title: None,
         })
     }
+}
+
+/// Process-wide PDFium instance. `bind_to_library` may only run once per process.
+static PDFIUM: std::sync::OnceLock<Pdfium> = std::sync::OnceLock::new();
+
+fn pdfium() -> Result<&'static Pdfium> {
+    if let Some(instance) = PDFIUM.get() {
+        return Ok(instance);
+    }
+    let bindings = bind()?;
+    let _ = PDFIUM.set(Pdfium::new(bindings));
+    PDFIUM
+        .get()
+        .ok_or_else(|| anyhow!("pdfium failed to initialise"))
 }
 
 /// Bind to pdfium, preferring `PDFIUM_PATH`, then `data/pdfium/`, then the system loader.

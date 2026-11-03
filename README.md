@@ -63,6 +63,9 @@ Team workflow — branches, reviews, agent rules: **[docs/CONTRIBUTING.md](docs/
 | `scripts\check-llm.ps1` | Verify the chat LLM base URL + key with a one-token request |
 | `scripts\fetch-pdfium.ps1` | Install the native PDFium library into `data/pdfium/` |
 | `cargo run -p bloo_parse --example dump -- <file>` | Print the parsed block stream for any document |
+| `cargo run -p bloo_api --bin worker` | Run the ingestion worker (claims jobs from Postgres) |
+| `scripts\make-test-pdfs.ps1` | Generate synthetic campus PDFs for testing |
+| `scripts\smoke-wp02.ps1` | End-to-end ingestion test: 30 uploads, dedupe, delete, crash recovery |
 | `scripts\test-thx01.ps1` | Send a real Bloo-shaped request to the self-hosted THX-01 sidecar |
 | `scripts\start-thx01.ps1` | Run THX-01 as a host process (recommended; avoids Docker/WSL memory) |
 | `make check` | fmt + clippy + test + check |
@@ -123,7 +126,7 @@ Steady-state RAM ≈ 250 MB, peak while ingesting ≈ 450 MB.
 |---|---|
 | P0 scaffold — workspace, schema, compose, UI shells, scripts | ✅ done |
 | P1 parsing (`bloo-parse`) | ✅ done |
-| P2 ingestion + queue | ⬜ |
+| P2 ingestion + queue | ✅ done |
 | P3 retrieval + THX-01 + chat | ⬜ |
 | P4 chat UI | ⬜ |
 | P5 admin console | ⬜ |
@@ -141,7 +144,7 @@ Work package detail, acceptance criteria and the agent protocol: **[PLAYBOOK.md]
 crates/bloo-core   config · db · models            ✅
 crates/bloo-api    Axum app + templates            ✅
 crates/bloo-parse  parsers (pdfium/docx/html)      ✅ P1
-crates/bloo-ingest chunker · queue · storage       ⬜ P2
+crates/bloo-ingest chunker · queue · storage · pipeline ✅ P2
 crates/bloo-rag    embed · retrieve · thx · llm    ⬜ P3
 crates/bloo-eval   retrieval + generation metrics  ⬜ P7
 migrations/        schema
