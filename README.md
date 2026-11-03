@@ -60,6 +60,7 @@ Team workflow — branches, reviews, agent rules: **[docs/CONTRIBUTING.md](docs/
 | `scripts\protect-main.ps1` | Apply branch protection to `main` (needs `gh auth login`, once) |
 | `scripts\check-halx.ps1` | Verify the HAL-X key against `/v1/models`; explains 401 vs 403 |
 | `scripts\test-thx01.ps1` | Send a real Bloo-shaped request to the self-hosted THX-01 sidecar |
+| `scripts\start-thx01.ps1` | Run THX-01 as a host process (recommended; avoids Docker/WSL memory) |
 | `make check` | fmt + clippy + test + check |
 
 ---

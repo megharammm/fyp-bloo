@@ -292,6 +292,13 @@ THX-01 is **open source** — Apache 2.0, 322M parameters, weights on Hugging Fa
 Point `HALX_BASE_URL` at either. Verify with `scripts\check-halx.ps1` (cloud) or
 `scripts\test-thx01.ps1` (local). Build details: `tools/thx01-local/README.md`.
 
+> **Run the model on the host, not in Docker, while developing.**
+> `scripts\start-thx01.ps1` creates `.venv-thx01` and serves on `127.0.0.1:8095`.
+> The app already runs on the host in dev, so this is a direct loopback call, and it avoids
+> duplicating ~2 GB of torch inside the WSL2 VM. A 322M fp32 model loading inside Docker has
+> already wedged Docker Desktop once on this laptop. The Docker profile stays available for
+> the packaged demo, capped at `mem_limit: 3g`.
+
 **The 10 ms headline is one GPU.** On a laptop CPU each forward pass is 200–500 ms, and
 `number` / `excerpt` / `cite` are *extra* passes. That changes three decisions:
 
