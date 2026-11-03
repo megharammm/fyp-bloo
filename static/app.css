@@ -557,3 +557,38 @@ code {
   font-size: 12px;
   cursor: pointer;
 }
+
+/* --- WP-04 completeness -------------------------------------------- */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.chip { min-height: 44px; display: inline-flex; align-items: center; }
+.composer button { min-height: 44px; }
+.feedback button { min-height: 40px; min-width: 44px; }
+
+.table-wrap { overflow-x: auto; margin: 8px 0; }
+.table-wrap table { margin: 0; }
+
+details.cites { margin-top: 12px; }
+details.cites > summary {
+  cursor: pointer;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 4px 0;
+  list-style: none;
+}
+details.cites > summary::-webkit-details-marker { display: none; }
+details.cites > summary::before { content: "+ "; }
+details.cites[open] > summary::before { content: "- "; }
+details.cites > summary:hover { color: var(--text); }
+
+.meta-note { margin: 8px 0 0; }

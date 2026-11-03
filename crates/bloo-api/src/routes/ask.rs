@@ -323,9 +323,13 @@ async fn stream_chat(state: AppState, req: AskRequest) -> Response {
         let mut stream = llm.stream(bloo_rag::prompt::system_prompt().to_string(), user);
 
         let mut full = String::new();
+        let mut first_token_ms: Option<u64> = None;
         while let Some(item) = stream.next().await {
             match item {
                 Ok(token) => {
+                    if first_token_ms.is_none() {
+                        first_token_ms = Some(started.elapsed().as_millis() as u64);
+                    }
                     full.push_str(&token);
                     if tx
                         .send(Ok(Event::default()
@@ -385,6 +389,7 @@ async fn stream_chat(state: AppState, req: AskRequest) -> Response {
             .send(Ok(Event::default().event("done").data(
                 json!({
                     "latency_ms": started.elapsed().as_millis() as u64,
+                    "first_token_ms": first_token_ms,
                     "refused": false,
                     "message_id": message_id,
                 })

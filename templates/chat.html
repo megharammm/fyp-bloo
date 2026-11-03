@@ -8,22 +8,22 @@
 </section>
 
 <section class="chat-card" id="chat">
-  <div class="messages" id="messages">
+  <div class="messages" id="messages" role="log" aria-live="polite" aria-label="Conversation">
     <div class="empty" id="empty">
       <p class="muted">Try one of these</p>
       <div class="chips">
-        <button class="chip" type="button">What is the hostel fee per semester?</button>
-        <button class="chip" type="button">How many books can an undergraduate borrow?</button>
-        <button class="chip" type="button">When does the revaluation window open?</button>
-        <button class="chip" type="button">What are the mess timings?</button>
+        {% for s in suggestions %}
+        <button class="chip" type="button">{{ s }}</button>
+        {% endfor %}
       </div>
     </div>
   </div>
 
-  <form class="composer" id="composer">
+  <form class="composer" id="composer" aria-label="Ask a question">
+    <label class="sr-only" for="q">Your question</label>
     <input id="q" name="q" placeholder="Ask a question…" autocomplete="off" autofocus />
-    <button id="send" type="submit">Send</button>
-    <button id="stop" class="ghost hidden" type="button">Stop</button>
+    <button id="send" type="submit" aria-label="Send question">Send</button>
+    <button id="stop" class="ghost hidden" type="button" aria-label="Stop generating">Stop</button>
   </form>
   <p class="hint">Answers come only from published campus documents. Every claim cites its source.</p>
 </section>
@@ -68,7 +68,7 @@ function render(text) {
         }).join('');
         return '<tr>' + cells + '</tr>';
       }).join('');
-      return '<table>' + html + '</table>';
+      return '<div class="table-wrap" role="region" tabindex="0"><table>' + html + '</table></div>';
     }
 
     if (lines.every((l) => l.trim().startsWith('- '))) {
@@ -92,16 +92,22 @@ function renderCitations(list) {
       '<blockquote>' + esc(c.quote) + '</blockquote>' + link +
       '</div>';
   }).join('');
-  return '<div class="cites"><div class="cites-label">Sources</div>' + cards + '</div>';
+  return '<details class="cites" open><summary>Where this came from (' + list.length + ')</summary>' +
+    cards + '</details>';
 }
 
 function renderFeedback(messageId) {
   if (!messageId) return '';
   return '<div class="feedback" data-message-id="' + esc(messageId) + '">' +
     '<span class="muted small">Was this helpful?</span>' +
-    '<button type="button" data-v="1">Yes</button>' +
-    '<button type="button" data-v="-1">No</button>' +
+    '<button type="button" data-v="1" aria-label="Helpful">Yes</button>' +
+    '<button type="button" data-v="-1" aria-label="Not helpful">No</button>' +
     '<span class="fb-note small muted"></span></div>';
+}
+
+function metaNote(ms) {
+  if (!ms) return '';
+  return '<p class="meta-note muted small">' + Math.round(ms) + ' ms to first token</p>';
 }
 
 function scrollDown() {
@@ -131,6 +137,20 @@ function parseEvent(raw) {
   try { return { event: event, data: JSON.parse(data) }; } catch (e) { return null; }
 }
 
+async function askJson(question, bubble) {
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: question, stream: false })
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+  bubble.innerHTML = render(j.answer) +
+    renderCitations(j.citations) +
+    renderFeedback(j.message_id);
+  scrollDown();
+}
+
 async function ask(question) {
   const text = (question || '').trim();
   if (!text || controller) return;
@@ -145,7 +165,7 @@ async function ask(question) {
   stopBtn.classList.remove('hidden');
   sendBtn.disabled = true;
 
-  const state = { text: '', citations: [], done: null };
+  const state = { text: '', citations: [], done: null, first: null };
 
   try {
     const res = await fetch('/api/chat', {
@@ -184,6 +204,7 @@ async function ask(question) {
           state.citations = ev.data.citations || [];
         } else if (ev.event === 'done') {
           state.done = ev.data;
+          state.first = ev.data.first_token_ms || null;
         } else if (ev.event === 'error') {
           throw new Error(ev.data.error || 'stream failed');
         }
@@ -192,14 +213,20 @@ async function ask(question) {
 
     bubble.innerHTML = render(state.text || 'No answer.') +
       renderCitations(state.citations) +
+      metaNote(state.first) +
       renderFeedback(state.done && state.done.message_id);
     scrollDown();
   } catch (err) {
     if (err.name === 'AbortError') {
       bubble.innerHTML = render(state.text || '_Stopped._');
     } else {
-      bubble.innerHTML = '<p class="err">' + esc(err.message || 'Request failed') + '</p>' +
-        '<button type="button" class="retry">Retry</button>';
+      // Streaming is a nice-to-have; fall back to the non-streaming endpoint once.
+      try {
+        await askJson(text, bubble);
+      } catch (err2) {
+        bubble.innerHTML = '<p class="err">' + esc(err2.message || err.message || 'Request failed') + '</p>' +
+          '<button type="button" class="retry">Retry</button>';
+      }
     }
   } finally {
     controller = null;
