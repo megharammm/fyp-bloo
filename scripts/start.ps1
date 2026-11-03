@@ -60,8 +60,17 @@ do {
 if ($s -ne 'healthy') { throw 'Postgres did not become healthy. Run: docker logs blooai-db' }
 
 if (-not $Fast) {
-    cargo build -p bloo_api 2>&1 | Select-Object -Last 3
-    if ($LASTEXITCODE -ne 0) { throw 'build failed' }
+    Write-Host '  building...' -ForegroundColor DarkGray
+    # PowerShell 5.1 turns a native command's stderr into a TERMINATING error when
+    # $ErrorActionPreference is Stop and the stream is redirected. cargo writes its
+    # progress to stderr, so `cargo build 2>&1 | ...` aborts before the exit code is read.
+    # Never redirect cargo here; check $LASTEXITCODE on a Continue preference instead.
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & cargo build -p bloo_api --quiet
+    $buildCode = $LASTEXITCODE
+    $ErrorActionPreference = $prevEap
+    if ($buildCode -ne 0) { throw 'cargo build failed' }
 }
 
 Start-Job -ScriptBlock {
@@ -75,4 +84,5 @@ Start-Job -ScriptBlock {
 } | Out-Null
 
 Write-Host "`nBloo AI live at http://127.0.0.1:27810  (Ctrl+C to stop)`n" -ForegroundColor Green
-cargo run -p bloo_api
+$ErrorActionPreference = 'Continue'
+& cargo run --quiet -p bloo_api
