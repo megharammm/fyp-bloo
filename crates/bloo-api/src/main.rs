@@ -102,6 +102,17 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
         .await
         .unwrap_or(false);
 
+    let halx_configured = state
+        .cfg
+        .halx_api_key
+        .as_deref()
+        .is_some_and(|k| !k.trim().is_empty());
+    let llm_configured = state
+        .cfg
+        .llm_api_key
+        .as_deref()
+        .is_some_and(|k| !k.trim().is_empty());
+
     let code = if db_ok {
         StatusCode::OK
     } else {
@@ -114,6 +125,10 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
             "service": "bloo-ai",
             "status": if db_ok { "ok" } else { "degraded" },
             "db": db_ok,
+            "halx_configured": halx_configured,
+            "llm_configured": llm_configured,
+            // Without HALX the pipeline runs with the local decider (PLAYBOOK 8.1).
+            "decider": state.cfg.decider(),
             "version": env!("CARGO_PKG_VERSION"),
         })),
     )

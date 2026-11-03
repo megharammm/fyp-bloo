@@ -140,6 +140,17 @@ if ([string]::IsNullOrWhiteSpace($llm)) {
     }
 } else { Ok 'LLM_API_KEY present' }
 
+# -- 3b. verify the HAL-X key (soft: never blocks setup) ---------------------
+if (-not [string]::IsNullOrWhiteSpace((Get-EnvValue '.env' 'HALX_API_KEY'))) {
+    Head '3b/6  Verifying HAL-X key'
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'check-halx.ps1')
+    if ($LASTEXITCODE -ne 0) {
+        Warn 'key not accepted - Bloo will start with the local decider (PLAYBOOK.md 8.1)'
+    }
+} else {
+    Warn 'no HALX key - starting in local decider mode (PLAYBOOK.md 8.1)'
+}
+
 # -- 4. isolation guard ------------------------------------------------------
 Head '4/6  Port isolation (27432 / 27810)'
 & (Join-Path $PSScriptRoot 'check-ports.ps1') -AllowBound

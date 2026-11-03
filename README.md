@@ -58,6 +58,7 @@ Team workflow — branches, reviews, agent rules: **[docs/CONTRIBUTING.md](docs/
 | `scripts\seed.ps1` | Load the demo corpus |
 | `scripts\check-ports.ps1` | Refuse to start if 27432/27810 belong to another project |
 | `scripts\protect-main.ps1` | Apply branch protection to `main` (needs `gh auth login`, once) |
+| `scripts\check-halx.ps1` | Verify the HAL-X key against `/v1/models`; explains 401 vs 403 |
 | `make check` | fmt + clippy + test + check |
 
 ---
