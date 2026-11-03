@@ -7,7 +7,7 @@ param(
     [switch]$AllowBound
 )
 
-$ports = @(27432, 27810)
+$ports = @(27432, 27810, 27812)
 
 foreach ($port in $ports) {
     $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue

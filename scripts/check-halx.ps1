@@ -10,7 +10,7 @@
 [CmdletBinding()]
 param(
     [string]$EnvFile = '.env',
-    [string]$BaseUrl = 'https://api.hal-x.ai'
+    [string]$BaseUrl = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,6 +32,12 @@ if (-not (Test-Path $EnvFile)) {
 }
 
 $key = Get-EnvValue $EnvFile 'HALX_API_KEY'
+if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
+    $BaseUrl = Get-EnvValue $EnvFile 'HALX_BASE_URL'
+    if ([string]::IsNullOrWhiteSpace($BaseUrl)) { $BaseUrl = 'https://api.hal-x.ai' }
+}
+$BaseUrl = $BaseUrl.TrimEnd('/')
+
 if ([string]::IsNullOrWhiteSpace($key)) {
     Write-Host 'HALX_API_KEY is empty in .env.' -ForegroundColor Yellow
     Write-Host 'HAL-X has no public signup: request a key from the HAL-X team, with the' -ForegroundColor Yellow
