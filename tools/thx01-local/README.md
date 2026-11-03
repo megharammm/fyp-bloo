@@ -73,6 +73,10 @@ First start downloads ~645 MB of weights into `%USERPROFILE%\.cache\huggingface`
 
 ## Option 3 — run it as a Bloo sidecar (what the demo uses)
 
+> **On this laptop, prefer Option 2b below.** Docker Desktop can wedge while loading a
+> 322M fp32 model into a WSL2 VM; running the same server as a host process avoids the
+> duplicate memory and the failure mode entirely.
+
 ```powershell
 docker compose -p blooai -f docker-compose.yml --profile thx01 up -d --build thx01
 ```
@@ -92,6 +96,31 @@ Verify from the host:
 ```powershell
 scripts\test-thx01.ps1
 ```
+
+The service is capped at 3 GB (`mem_limit`) so a bad load cannot take the whole VM down.
+
+---
+
+## Option 2b — host process (recommended while developing)
+
+Bloo already runs on the host in dev, so there is no reason to put torch inside Docker.
+
+```powershell
+scripts\start-thx01.ps1
+```
+
+It creates `.venv-thx01` once, installs CPU-only torch, sets `OMP_NUM_THREADS` so the laptop
+stays responsive, and serves on `127.0.0.1:8095`. Then set:
+
+```dotenv
+HALX_BASE_URL=http://127.0.0.1:8095
+HALX_API_KEY=bloo-local
+BLOO_DECIDER=thx
+```
+
+Verify: `scripts\test-thx01.ps1 -BaseUrl http://127.0.0.1:8095`
+
+Use Docker only for the packaged demo build.
 
 ---
 

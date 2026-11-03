@@ -77,9 +77,16 @@ services:
       THX01_DEVICE: cpu
       THX01_API_KEY: ${THX01_API_KEY:-bloo-local}
       HF_HOME: /models
+      # torch defaults to every core and makes the whole laptop stutter
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
       # Uncomment for a fully offline demo once the weights are cached:
       # HF_HUB_OFFLINE: "1"
       # TRANSFORMERS_OFFLINE: "1"
+    # A 322M fp32 model plus torch needs ~2.5-3 GB. Cap it so a bad load cannot
+    # take the whole WSL VM (and Docker Desktop) down with it.
+    mem_limit: 3g
+    memswap_limit: 3g
     volumes:
       - thx01models:/models
 
