@@ -2,6 +2,7 @@ target/
 data/raw/*
 data/uploads/*
 data/models/*
+data/pdfium/*
 !data/raw/.gitkeep
 !data/uploads/.gitkeep
 !data/models/.gitkeep
